@@ -1,4 +1,4 @@
-# Stonks Paper Trading
+# Stonks - StockSandbox
 
 ## Brief Application Description
 - Our application features a fictional stock market using fake money, the stocks are based on real stocks for the prices and fluctuations. When a user logs in they are given a certain amount of starting cash which they can use to invest in the market. The application will track their stocks, allowing them to cash out whenever they want. Their profits or losses will be tracked as well, allowing them to see how effective they have been.
