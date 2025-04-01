@@ -1,3 +1,7 @@
+### how to run ###
+docker-compose up --build
+
+
 # Stonks - StockSandbox
 
 ## Brief Application Description

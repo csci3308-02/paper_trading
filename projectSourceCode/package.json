@@ -10,7 +10,8 @@
     "express-handlebars": "^7.1.2",
     "pg-promise": "^10.11.1",
     "dotenv": "^16.0.3",
-    "http-proxy-middleware": "^2.0.6"
+    "http-proxy-middleware": "^2.0.6",
+    "bcrypt": "^5.1.1"
   },
   "scripts": {
     "prestart": "npm install",

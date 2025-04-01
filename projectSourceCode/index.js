@@ -7,6 +7,7 @@ const pgp = require('pg-promise')();
 const session = require('express-session');
 const bodyParser = require('body-parser');
 const { createProxyMiddleware } = require('http-proxy-middleware');
+const bcrypt = require('bcrypt');
 
 const app = express();
 
@@ -103,29 +104,29 @@ app.get('/login', (req, res) => {
 
 
 // Login submission
-app.post('/login', (req, res) => {
+app.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
-  db.get("SELECT * FROM users WHERE username = ?", [username], async (err, user) => {
-    if (err || !user) {
+  try {
+    const user = await db.one("SELECT * FROM users WHERE username = $1", [username]);
+    
+    if (!user) {
       return res.redirect('/register');
     }
 
-    try {
-      const match = await bcrypt.compare(password, user.password);
-      if (!match) {
-        return res.render('login', { message: "Incorrect username or password." });
-      }
-
-      req.session.user = user;
-      req.session.save(() => {
-        res.redirect('/discover');
-      });
-    } catch (error) {
-      console.error('Login error:', error);
-      res.status(500).render('login', { message: "Something went wrong. Please try again later." });
+    const match = await bcrypt.compare(password, user.password_hash);
+    if (!match) {
+      return res.render('pages/login', { message: "Incorrect username or password." });
     }
-  });
+
+    req.session.user = user;
+    req.session.save(() => {
+      res.redirect('/discover');
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).render('pages/login', { message: "Something went wrong. Please try again later." });
+  }
 });
 
 app.get('/register', (req, res) => {
@@ -133,17 +134,17 @@ app.get('/register', (req, res) => {
 });
 
 app.post('/register', async (req, res) => {
-  const { username, password } = req.body;
+  const { username, email, password } = req.body;
   try {
-      const hashedPassword = await bcrypt.hash(password, 10);
-      db.run("INSERT INTO users (username, password) VALUES (?, ?)", [username, hashedPassword], function (err) {
-          if (err) {
-              return res.redirect('/register');
-          }
-          res.redirect('/login');
-      });
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await db.none(
+      "INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3)",
+      [username, email, hashedPassword]
+    );
+    res.redirect('/login');
   } catch (error) {
-      res.redirect('/register');
+    console.error('Registration error:', error);
+    res.redirect('/register');
   }
 });
   
