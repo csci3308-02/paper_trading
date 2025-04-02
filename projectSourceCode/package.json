@@ -1,17 +1,17 @@
 {
     "_comment": "Copied straight from lab 8 may need to update, Delete this comment when done",
-
     "name": "web-services",
     "main": "index.js",
     "dependencies": {
         "axios": "^1.1.3",
         "bcryptjs": "^2.4.0",
         "body-parser": "1.20.0",
-        "express-handlebars": "^7.1.2",
         "express": "^4.6.1",
+        "express-handlebars": "^7.1.2",
         "express-session": "1.17.3",
+        "nodemon": "2.0.20",
         "pg-promise": "^10.11.1",
-        "nodemon": "2.0.20"
+        "yfinance": "^0.0.6"
     },
     "scripts": {
         "prestart": "npm install",
