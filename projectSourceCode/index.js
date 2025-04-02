@@ -147,39 +147,42 @@ app.post('/register', async (req, res) => {
     res.redirect('/register');
   }
 });
-  
- // Chart page (no auth required)
-app.get('/chart', (req, res) => {
-  res.render('pages/chart');
+
+app.get('/api/search/:query', async (req, res) => {
+  try {
+    const { query } = req.params;
+    // Use Yahoo for search
+    const results = await yahooFinance.search(query);
+    res.json(results.quotes || []);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-app.use(auth);
+// API route for Order History Page
+app.get('/orderhistory', async (req, res) => {
+  if (!req.session.user) {
+      return res.redirect('/login'); // Redirect if not logged in !! create login API
+  }
 
-// -------------------------------------  ROUTES for home.hbs   ----------------------------------------------
-
-app.get('/', (req, res) => {
-  res.render('pages/home', {
-    username: req.session.user.username,
-    profits: req.session.user.profits,
-    money_held: req.session.user.moneyHeld,
-    money_in_stocks: req.session.user.moneyInStocks,
-  });
+  try {
+      const orders = await db.any(
+          'SELECT stock_name, symbol, price, quantity, type, created_at FROM orders WHERE user_id = $1 ORDER BY created_at DESC', // sample query can change depending on info needed
+          [req.session.user.id]
+      );
+      res.render('pages/orderhistory', { orders });
+  } catch (error) {
+      console.error('Error fetching order history:', error);
+      res.status(500).send('Internal Server Error');
+  }
 });
 
 
-
-
-// -------------------------------------  ROUTES for logout.hbs   ----------------------------------------------
-
-app.get('/logout', (req, res) => {
-  req.session.destroy(function(err) {
-    res.render('pages/logout');
-  });
-});
-
-// -------------------------------------  START THE SERVER   ----------------------------------------------
-
-app.listen(3000, () => {
-  console.log('Server is running at http://localhost:3000');
+// *****************************************************
+// <!-- Start Server-->
+// *****************************************************
+// starting the server and keeping the connection open to listen for more requests
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
 
