@@ -5,7 +5,9 @@ import json
 import yfinance as yf
 import os
 
-PORT = 8000
+PORT = 5000
+
+print("Python server started...")
 
 class CustomHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
@@ -13,14 +15,16 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         path = url.path
         params = urllib.parse.parse_qs(url.query)
 
-        if path == "/api/stock":
+        print(f"Request received: {path}")  
+
+        if path == "/stock":
             self.handle_stock_request(params)
 
-        elif path == "/api/history":
+        elif path == "/history":
             self.handle_history_request(params)
 
         else:
-            super().do_GET()
+            self.send_error(404, "Not Found")  
 
     def handle_stock_request(self, params):
         tickers = params.get("ticker", [])
@@ -62,12 +66,13 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
     def respond_json(self, data):
         self.send_response(200)
         self.send_header("Content-type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
 
 # Serve files from the script's directory
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-with socketserver.TCPServer(("", PORT), CustomHandler) as httpd:
+with socketserver.TCPServer(("0.0.0.0", PORT), CustomHandler) as httpd:
     print(f"Serving on http://localhost:{PORT}")
     httpd.serve_forever()

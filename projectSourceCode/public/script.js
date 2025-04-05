@@ -1,6 +1,7 @@
 let chart;
 let interval;
 let historicalData = [];
+let LIVEINTERVAL = 1000; // 1 second
 
 function simulateChart() {
   clearInterval(interval);
@@ -47,6 +48,10 @@ function startLiveChart() {
   setText("currentPrice", `Starting live updates for ${ticker}...`);
   setText("chartDate", "Live Mode");
 
+  if (isMarketClosed()) {
+    setText("chartDate", "Market is closed. Prices may not update.");
+  }  
+
   const ctx = document.getElementById("stockChart").getContext("2d");
   if (chart) chart.destroy();
 
@@ -54,26 +59,48 @@ function startLiveChart() {
 
   interval = setInterval(() => {
     fetch(`/api/stock?ticker=${ticker}`)
-      .then(res => res.json())
-      .then(data => {
-        const stock = data[0];
-        if (!stock || !stock.price) return;
+  .then(res => res.json())
+  .then(data => {
+    const stock = data[0];
+    if (!stock || stock.price == null) return;
 
-        const now = new Date();
-        chart.data.labels.push(now.toISOString());
-        chart.data.datasets[0].data.push(stock.price);
+    const now = new Date();
+    const price = parseFloat(stock.price);
 
-        const [min, max] = getMinMax(chart.data.datasets[0].data);
-        const buffer = (max - min) * 0.03;
-        chart.options.scales.y.min = min - buffer;
-        chart.options.scales.y.max = max + buffer;
+    if (!chart) {
+      const ctx = document.getElementById("stockChart").getContext("2d");
+      chart = new Chart(ctx, getChartConfig(ticker, [now.toISOString()], [price], price - 1, price + 1));
+    } else {
+      chart.data.labels.push(now.toISOString());
+      chart.data.datasets[0].data.push(price);
 
-        chart.update();
+      const [min, max] = getMinMax(chart.data.datasets[0].data);
+      const buffer = (max - min) * 0.03;
+      chart.options.scales.y.min = min - buffer;
+      chart.options.scales.y.max = max + buffer;
 
-        setText("currentPrice", `${stock.name} (${stock.ticker}): $${stock.price.toFixed(2)} @ ${formatTime(now)}`);
-      });
-  }, 1000);
+      chart.update();
+    }
+
+    setText("currentPrice", `${stock.name} (${stock.ticker}): $${price.toFixed(2)} @ ${formatTime(now)}`);
+  });
+
+  }, LIVEINTERVAL);
 }
+
+function isMarketClosed() {
+  const now = new Date();
+  const day = now.getDay();
+  const hour = now.getHours();
+
+  // Market is open mon-fri, 930am to 4pm est
+  const isWeekend = day === 0 || day === 6;
+  const isBeforeOpen = hour < 9;
+  const isAfterClose = hour >= 16;
+
+  return isWeekend || isBeforeOpen || isAfterClose;
+}
+
 
 function getTicker() {
   const val = getValue("tickerInput").toUpperCase();
@@ -132,14 +159,17 @@ function getChartConfig(ticker, labels, data, yMin, yMax) {
           title: { display: true, text: "Time" },
           ticks: {
             maxTicksLimit: 20,
-            callback: (value) => {
-              const fullTime = value;
-              return new Date(fullTime).toLocaleTimeString([], {
+            callback: function (val, index, ticks) {
+              const rawLabel = labels[index];
+              const date = new Date(rawLabel);
+          
+              return date.toLocaleTimeString([], {
                 hour: '2-digit',
                 minute: '2-digit'
               });
             }
           }
+          
         },
         y: {
           min: yMin,
