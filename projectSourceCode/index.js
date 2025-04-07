@@ -1,5 +1,4 @@
 // ----------------------------------   DEPENDENCIES  ----------------------------------------------
-
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
@@ -58,14 +57,18 @@ const dbConfig = {
 };
 const db = pgp(dbConfig);
 
+
+// db test
 db.connect()
   .then(obj => {
+    // Can check the server version here (pg-promise v10.1.0+):
     console.log('Database connection successful');
-    obj.done();
+    obj.done(); // success, release the connection;
   })
   .catch(error => {
     console.log('ERROR', error.message || error);
   });
+
 
 // ----------------------------------   API PROXY TO PYTHON SERVER   ----------------------------------
 
@@ -84,43 +87,84 @@ const auth = (req, res, next) => {
 };
 
 // Login page
+// -------------------------------------  ROUTES for login.hbs   ----------------------------------------------
+const user = {
+  username: undefined,
+  profits: undefined,
+  moneyHeld: undefined,
+  moneyInStocks: undefined,
+};
+
+
+
 app.get('/login', (req, res) => {
   res.render('pages/login');
 });
 
-// Login form submission
+
+// Login submission
 app.post('/login', (req, res) => {
-  const username = req.body.username;
-  const query = 'SELECT * FROM users WHERE username = $1 LIMIT 1';
+  const { username, password } = req.body;
 
-  db.one(query, [username])
-    .then(data => {
-      req.session.user = {
-        username: data.username,
-        profits: data.profits,
-        moneyHeld: data.moneyheld,
-        moneyInStocks: data.moneyinstocks,
-      };
-      res.redirect('/');
-    })
-    .catch(err => {
-      console.log(err);
-      res.redirect('/login');
-    });
+  db.get("SELECT * FROM users WHERE username = ?", [username], async (err, user) => {
+    if (err || !user) {
+      return res.redirect('/register');
+    }
+
+    try {
+      const match = await bcrypt.compare(password, user.password);
+      if (!match) {
+        return res.render('login', { message: "Incorrect username or password." });
+      }
+
+      req.session.user = user;
+      req.session.save(() => {
+        res.redirect('/discover');
+      });
+    } catch (error) {
+      console.error('Login error:', error);
+      res.status(500).render('login', { message: "Something went wrong. Please try again later." });
+    }
+  });
 });
 
-// Logout
-app.get('/logout', (req, res) => {
-  req.session.destroy(() => res.render('pages/logout'));
+app.get('/register', (req, res) => {
+  res.render('pages/register');
 });
 
-// Chart page (no auth required)
+app.post('/register', async (req, res) => {
+  const { username, password } = req.body;
+  try {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      db.run("INSERT INTO users (username, password) VALUES (?, ?)", [username, hashedPassword], function (err) {
+          if (err) {
+              return res.redirect('/register');
+          }
+          res.redirect('/login');
+      });
+  } catch (error) {
+      res.redirect('/register');
+  }
+});
+
+// Authentication middleware.
+const auth = (req, res, next) => {
+  if (!req.session.user) {
+    return res.redirect('/login');
+  }
+  next();
+};
+  
+ // Chart page (no auth required)
 app.get('/chart', (req, res) => {
   res.render('pages/chart');
 });
 
-// Home page (auth required)
-app.get('/', auth, (req, res) => {
+app.use(auth);
+
+// -------------------------------------  ROUTES for home.hbs   ----------------------------------------------
+
+app.get('/', (req, res) => {
   res.render('pages/home', {
     username: req.session.user.username,
     profits: req.session.user.profits,
@@ -129,8 +173,20 @@ app.get('/', auth, (req, res) => {
   });
 });
 
-// ----------------------------------   START SERVER   ------------------------------------------------
+
+
+
+// -------------------------------------  ROUTES for logout.hbs   ----------------------------------------------
+
+app.get('/logout', (req, res) => {
+  req.session.destroy(function(err) {
+    res.render('pages/logout');
+  });
+});
+
+// -------------------------------------  START THE SERVER   ----------------------------------------------
 
 app.listen(3000, () => {
   console.log('Server is running at http://localhost:3000');
 });
+
