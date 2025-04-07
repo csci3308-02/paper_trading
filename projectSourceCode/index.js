@@ -146,14 +146,6 @@ app.post('/register', async (req, res) => {
       res.redirect('/register');
   }
 });
-
-// Authentication middleware.
-const auth = (req, res, next) => {
-  if (!req.session.user) {
-    return res.redirect('/login');
-  }
-  next();
-};
   
  // Chart page (no auth required)
 app.get('/chart', (req, res) => {
