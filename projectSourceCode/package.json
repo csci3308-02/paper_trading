@@ -1,5 +1,5 @@
 {
-  "name": "node-ejs",
+  "name": "ejs",
   "main": "index.js",
   "dependencies": {
     "ejs": "^2.5.5",
@@ -13,5 +13,12 @@
   "scripts": {
     "prestart": "npm install",
     "start": "node index.js"
-  }
+  },
+  "version": "1.0.0",
+  "directories": {
+    "test": "tests"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": ""
 }
