@@ -1,46 +1,53 @@
 // ----------------------------------   DEPENDENCIES  ----------------------------------------------
+require('dotenv').config();
 const express = require('express');
-const app = express();
-const handlebars = require('express-handlebars');
 const path = require('path');
+const handlebars = require('express-handlebars');
 const pgp = require('pg-promise')();
-const bodyParser = require('body-parser');
 const session = require('express-session');
+const bodyParser = require('body-parser');
+const { createProxyMiddleware } = require('http-proxy-middleware');
 
-// -------------------------------------  APP CONFIG   ----------------------------------------------
+const app = express();
 
-// create `ExpressHandlebars` instance and configure the layouts and partials dir.
+// ----------------------------------   STATIC FILES   ----------------------------------------------
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ----------------------------------   VIEW ENGINE SETUP   ------------------------------------------
+
 const hbs = handlebars.create({
   extname: 'hbs',
-  layoutsDir: __dirname + '/views/layouts',
-  partialsDir: __dirname + '/views/partials',
+  layoutsDir: path.join(__dirname, 'views/layouts'),
+  partialsDir: path.join(__dirname, 'views/partials'),
+  defaultLayout: 'main',
 });
 
-// Register `hbs` as our view engine using its bound `engine()` function.
 app.engine('hbs', hbs.engine);
 app.set('view engine', 'hbs');
 app.set('views', path.join(__dirname, 'views'));
+
+// ----------------------------------   MIDDLEWARE   --------------------------------------------------
+
 app.use(bodyParser.json());
-// set Session
+app.use(bodyParser.urlencoded({ extended: true }));
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET,
+    resave: false,
     saveUninitialized: true,
-    resave: true,
   })
 );
+
+// Make session user available in all views
 app.use((req, res, next) => {
   res.locals.user = req.session.user;
   next();
-})
+});
 
-app.use(
-  bodyParser.urlencoded({
-    extended: true,
-  })
-);
+// ----------------------------------   DB CONFIG   ---------------------------------------------------
 
-// -------------------------------------  DB CONFIG AND CONNECT   ---------------------------------------
 const dbConfig = {
   host: 'db',
   port: 5432,
@@ -49,6 +56,7 @@ const dbConfig = {
   password: process.env.POSTGRES_PASSWORD,
 };
 const db = pgp(dbConfig);
+
 
 // db test
 db.connect()
@@ -61,6 +69,24 @@ db.connect()
     console.log('ERROR', error.message || error);
   });
 
+
+// ----------------------------------   API PROXY TO PYTHON SERVER   ----------------------------------
+
+app.use('/api', createProxyMiddleware({
+  target: 'http://python:5000',
+  changeOrigin: true,
+  pathRewrite: { '^/api': '' },
+}));
+
+// ----------------------------------   ROUTES   ------------------------------------------------------
+
+// Auth middleware
+const auth = (req, res, next) => {
+  if (!req.session.user) return res.redirect('/login');
+  next();
+};
+
+// Login page
 // -------------------------------------  ROUTES for login.hbs   ----------------------------------------------
 const user = {
   username: undefined,
@@ -70,9 +96,11 @@ const user = {
 };
 
 
+
 app.get('/login', (req, res) => {
   res.render('pages/login');
 });
+
 
 // Login submission
 app.post('/login', (req, res) => {
@@ -126,6 +154,11 @@ const auth = (req, res, next) => {
   }
   next();
 };
+  
+ // Chart page (no auth required)
+app.get('/chart', (req, res) => {
+  res.render('pages/chart');
+});
 
 app.use(auth);
 
@@ -136,9 +169,10 @@ app.get('/', (req, res) => {
     username: req.session.user.username,
     profits: req.session.user.profits,
     money_held: req.session.user.moneyHeld,
-    money_in_stocks: req.session.moneyInStocks,
+    money_in_stocks: req.session.user.moneyInStocks,
   });
 });
+
 
 
 
@@ -152,5 +186,7 @@ app.get('/logout', (req, res) => {
 
 // -------------------------------------  START THE SERVER   ----------------------------------------------
 
-app.listen(3000);
-console.log('Server is listening on port 3000');
+app.listen(3000, () => {
+  console.log('Server is running at http://localhost:3000');
+});
+

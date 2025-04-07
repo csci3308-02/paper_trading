@@ -1,7 +1,27 @@
-<!-- TODO: Add the head.hbs partial here -->
-{{> head}}
-<!-- TODO: Add the nav.hbs partial here -->
-{{> nav}}
-{{{body}}}
-<!-- TODO: Add the footer.hbs partial here -->
-{{> footer}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Paper Trading App</title>
+  <link rel="stylesheet" href="/style.css" />
+  {{{head}}}
+</head>
+<body>
+  <header>
+    <h1>Welcome{{#if user}}, {{user.username}}{{/if}}</h1>
+    <nav>
+      <a href="/">Home</a> |
+      <a href="/chart">Chart</a> |
+      <a href="/logout">Logout</a>
+    </nav>
+  </header>
+
+  <main>
+    {{{body}}}
+  </main>
+
+  <footer>
+    <p>&copy; 2025 Paper Trading App</p>
+  </footer>
+</body>
+</html>
