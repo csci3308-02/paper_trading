@@ -77,18 +77,26 @@ app.get('/login', (req, res) => {
 // Login submission
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
+
   db.get("SELECT * FROM users WHERE username = ?", [username], async (err, user) => {
-      if (err || !user) {
-          return res.redirect('/register');
-      }
+    if (err || !user) {
+      return res.redirect('/register');
+    }
+
+    try {
       const match = await bcrypt.compare(password, user.password);
       if (!match) {
-          return res.render('login', { message: "Incorrect username or password." });
+        return res.render('login', { message: "Incorrect username or password." });
       }
+
       req.session.user = user;
       req.session.save(() => {
-          res.redirect('/discover');
+        res.redirect('/discover');
       });
+    } catch (error) {
+      console.error('Login error:', error);
+      res.status(500).render('login', { message: "Something went wrong. Please try again later." });
+    }
   });
 });
 
