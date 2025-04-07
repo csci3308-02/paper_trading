@@ -76,26 +76,47 @@ app.get('/login', (req, res) => {
 
 // Login submission
 app.post('/login', (req, res) => {
-  const username = req.body.username;
-  const query = 'select * from users where users.username = $1 LIMIT 1';
-  const values = [email];
+  const { username, password } = req.body;
 
-  // get the student_id based on the emailid
-  db.one(query, values)
-    .then(data => {
-      user.username = username;
-      user.profits = data.profits;
-      user.moneyHeld = data.moneyHeld;
-      user.moneyInStocks = data.moneyInStocks;
+  db.get("SELECT * FROM users WHERE username = ?", [username], async (err, user) => {
+    if (err || !user) {
+      return res.redirect('/register');
+    }
+
+    try {
+      const match = await bcrypt.compare(password, user.password);
+      if (!match) {
+        return res.render('login', { message: "Incorrect username or password." });
+      }
+
       req.session.user = user;
-      req.session.save();
+      req.session.save(() => {
+        res.redirect('/discover');
+      });
+    } catch (error) {
+      console.error('Login error:', error);
+      res.status(500).render('login', { message: "Something went wrong. Please try again later." });
+    }
+  });
+});
 
-      res.redirect('/');
-    })
-    .catch(err => {
-      console.log(err);
-      res.redirect('/login');
-    });
+app.get('/register', (req, res) => {
+  res.render('pages/register');
+});
+
+app.post('/register', async (req, res) => {
+  const { username, password } = req.body;
+  try {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      db.run("INSERT INTO users (username, password) VALUES (?, ?)", [username, hashedPassword], function (err) {
+          if (err) {
+              return res.redirect('/register');
+          }
+          res.redirect('/login');
+      });
+  } catch (error) {
+      res.redirect('/register');
+  }
 });
 
 // Authentication middleware.
