@@ -1,73 +1,61 @@
-import http.server
-import socketserver
-import urllib.parse
-import json
+from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
 import yfinance as yf
 import os
 
+app = Flask(__name__, static_folder='.')
+CORS(app)  # Enable CORS for all routes
+
 PORT = 8000
 
-class CustomHandler(http.server.SimpleHTTPRequestHandler):
-    def do_GET(self):
-        url = urllib.parse.urlparse(self.path)
-        path = url.path
-        params = urllib.parse.parse_qs(url.query)
+@app.route('/api/stock')
+def handle_stock_request():
+    tickers = request.args.getlist('ticker')
+    results = []
 
-        if path == "/api/stock":
-            self.handle_stock_request(params)
-
-        elif path == "/api/history":
-            self.handle_history_request(params)
-
-        else:
-            super().do_GET()
-
-    def handle_stock_request(self, params):
-        tickers = params.get("ticker", [])
-        results = []
-
-        for symbol in tickers:
-            try:
-                stock = yf.Ticker(symbol.upper())
-                info = stock.info
-                results.append({
-                    "ticker": symbol.upper(),
-                    "name": info.get("shortName"),
-                    "price": info.get("regularMarketPrice")
-                })
-            except Exception as e:
-                results.append({
-                    "ticker": symbol.upper(),
-                    "error": str(e)
-                })
-
-        self.respond_json(results)
-
-    def handle_history_request(self, params):
-        ticker = params.get("ticker", [""])[0].upper()
-        interval = params.get("interval", ["5m"])[0]
-        period = params.get("period", ["1d"])[0]
-
+    for symbol in tickers:
         try:
-            stock = yf.Ticker(ticker)
-            history = stock.history(period=period, interval=interval)
-            data = [
-                {"time": str(index), "price": float(row["Close"])}
-                for index, row in history.iterrows()
-            ]
-            self.respond_json(data)
+            stock = yf.Ticker(symbol.upper())
+            info = stock.info
+            results.append({
+                "ticker": symbol.upper(),
+                "name": info.get("shortName"),
+                "price": info.get("regularMarketPrice")
+            })
         except Exception as e:
-            self.send_error(500, message=str(e))
+            results.append({
+                "ticker": symbol.upper(),
+                "error": str(e)
+            })
 
-    def respond_json(self, data):
-        self.send_response(200)
-        self.send_header("Content-type", "application/json")
-        self.end_headers()
-        self.wfile.write(json.dumps(data).encode())
+    return jsonify(results)
 
-# Serve files from the script's directory
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
+@app.route('/api/history')
+def handle_history_request():
+    ticker = request.args.get('ticker', '').upper()
+    interval = request.args.get('interval', '5m')
+    period = request.args.get('period', '1d')
 
-with socketserver.TCPServer(("", PORT), CustomHandler) as httpd:
+    try:
+        stock = yf.Ticker(ticker)
+        history = stock.history(period=period, interval=interval)
+        data = [
+            {"time": str(index), "price": float(row["Close"])}
+            for index, row in history.iterrows()
+        ]
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Serve static files
+@app.route('/')
+def serve_index():
+    return send_from_directory('.', 'index.html')
+
+@app.route('/<path:path>')
+def serve_static(path):
+    return send_from_directory('.', path)
+
+if __name__ == '__main__':
     print(f"Serving on http://localhost:{PORT}")
-    httpd.serve_forever()
+    app.run(host='0.0.0.0', port=PORT, debug=True)

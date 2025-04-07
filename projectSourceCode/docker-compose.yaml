@@ -8,9 +8,9 @@ services:
       - group-project:/var/lib/postgresql/data
       - ./src/init_data:/docker-entrypoint-initdb.d
   web:
-    image: node:lts
-    user: 'node'
-    working_dir: /repository
+    build: 
+      context: .
+      dockerfile: Dockerfile.web
     env_file: .env
     environment:
       - NODE_ENV=development
@@ -20,6 +20,21 @@ services:
       - '3000:3000'
     volumes:
       - ./:/repository
-    command: 'npm start'
+      - /repository/node_modules
+    command: >    
+      bash -c "npm install && npm start" 
+  api:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+    ports:
+      - '8000:8000'
+    volumes:
+      - ./:/app
+    environment:
+      - FLASK_ENV=development
+      - FLASK_APP=server.py
 volumes:
   group-project:
