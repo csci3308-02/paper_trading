@@ -1,0 +1,24 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 30px;
+  text-align: center;
+}
+
+.controls {
+  margin-bottom: 20px;
+}
+
+canvas {
+  width: 1000px !important;
+  height: 500px !important;
+  margin: 0 auto;
+  display: block;
+}
+
+#chartContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+
