@@ -15,7 +15,7 @@ COPY src/ ./src/
 COPY views/ ./views/
 COPY script.js .
 COPY style.css .
-COPY index.html .
+COPY index.js .
 
 # python server port
 EXPOSE 8000
