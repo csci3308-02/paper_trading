@@ -9,9 +9,9 @@ services:
       - ./src/init_data:/docker-entrypoint-initdb.d
 
   web:
-    image: node:lts
-    user: 'node'
-    working_dir: /app
+    build: 
+      context: .
+      dockerfile: Dockerfile.web
     env_file: .env
     environment:
       - NODE_ENV=development
@@ -21,20 +21,22 @@ services:
     ports:
       - '3000:3000'
     volumes:
-      - .:/app
-    command: 'npm start'
-
-  python:
-    build:
+      - ./:/repository
+      - /repository/node_modules
+    command: >    
+      bash -c "npm install && npm start" 
+  api:
+    build: 
       context: .
-      dockerfile: /stock_api/Dockerfile
-    working_dir: /app
-    env_file: .env
-    volumes:
-      - .:/app
+      dockerfile: Dockerfile
+    depends_on:
+      - db
     ports:
-      - '5000:5000'
-    command: python3 stock_api/server.py
-
+      - '8000:8000'
+    volumes:
+      - ./:/app
+    environment:
+      - FLASK_ENV=development
+      - FLASK_APP=server.py
 volumes:
   group-project:
