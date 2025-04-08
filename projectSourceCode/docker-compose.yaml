@@ -6,7 +6,11 @@ services:
       - '5432'
     volumes:
       - group-project:/var/lib/postgresql/data
-      - ./src/init_data:/docker-entrypoint-initdb.d
+      - ./init_data/init_user.sql:/docker-entrypoint-initdb.d/00-init_user.sql
+      - ./init_data/01-init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./init_data/pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - ./init_data/postgresql.conf:/etc/postgresql/postgresql.conf
+    command: postgres -c 'config_file=/etc/postgresql/postgresql.conf' -c 'hba_file=/etc/postgresql/pg_hba.conf'
 
   web:
     build: 
@@ -15,9 +19,14 @@ services:
     env_file: .env
     environment:
       - NODE_ENV=development
+      - PGHOST=db
+      - PGUSER=${POSTGRES_USER}
+      - PGPASSWORD=${POSTGRES_PASSWORD}
+      - PGDATABASE=${POSTGRES_DB}
+      - PGPORT=5432
     depends_on:
       - db
-      - python
+      - api
     ports:
       - '3000:3000'
     volumes:
@@ -38,5 +47,10 @@ services:
     environment:
       - FLASK_ENV=development
       - FLASK_APP=server.py
+      - PGHOST=db
+      - PGUSER=${POSTGRES_USER}
+      - PGPASSWORD=${POSTGRES_PASSWORD}
+      - PGDATABASE=${POSTGRES_DB}
+      - PGPORT=5432
 volumes:
   group-project:
