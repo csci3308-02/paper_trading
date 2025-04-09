@@ -1,0 +1,25 @@
+1. When a user enters incorrect login information, they are given a message telling them that authentication failed and suggesting to navigate to the registration page if they don't have an account already.
+
+This will be tested by passing a username and password to the login page which does not correspond to any user, ex: Username: TestingGuy37, Password: Testpasswordfail
+
+We will also pass a known working account, to ensure that it is not denied by the system.
+
+This test can be conducted on a simple docker webpage, easily confirmed and observed.
+
+Testers will be any members of the development team
+
+2. When a user attempts to buy a given stock, they are allowed to when possessing the required money, the change being immediately reflected in their information and stock portfolio. If they have insufficient money, they will be given a message informing them as such, and the transaction will fail.
+
+This will be tested by attempting two stock buys, one where the ordered number of stocks is within the test account's budget and one where it attempts to order more than it can afford.
+
+This test can be conducted on a simple docker webpage, easily confirmed and observed.
+
+Testers will be any members of the development team
+
+3. When a user views their stock portfolio, including their money held in stocks and their overall net worth, the page will accurately reflect the current state of their account, updating all numbers to be in line with the current stock market values. Ex: A user has bought ten stocks of 'SampleStockCorp', priced at $10 each. When they view their portfolio, their 'money held in stocks' value will be $100. If the price of the stocks of 'SampleStockCorp' increased to $11 each, their 'money held in stocks' value would increase to $110.
+
+This will be tested by creating a test account and buying some amount of a stock and then waiting for our API to update at whatever rate it does. We will record the values of the account before and after the stock price update, ensuring that they are what we expect.
+
+This test can be conducted on a simple docker webpage, easily confirmed and observed.
+
+Testers will be any members of the development team
