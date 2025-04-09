@@ -39,6 +39,11 @@ function simulateChart() {
 }
 
 function startLiveChart() {
+  if (isMarketClosed()) {
+    alert("Market is closed. Please try again during market hours.");
+    return;
+  }
+
   clearInterval(interval);
   historicalData = [];
 
@@ -47,10 +52,6 @@ function startLiveChart() {
 
   setText("currentPrice", `Starting live updates for ${ticker}...`);
   setText("chartDate", "Live Mode");
-
-  if (isMarketClosed()) {
-    setText("chartDate", "Market is closed. Prices may not update.");
-  }  
 
   const ctx = document.getElementById("stockChart").getContext("2d");
   if (chart) chart.destroy();
@@ -96,14 +97,16 @@ function isMarketClosed() {
 
   const day = now_est.getDay();
   const hour = now_est.getHours();
+  const minute = now_est.getMinutes();
 
-  // Market is open mon-fri, 930am to 4pm *EST*
+  //market is open mon-fri, 930am to 4pm *EST*
   const isWeekend = day === 0 || day === 6;
-  const isBeforeOpen = hour < 9;
-  const isAfterClose = hour >= 16;
+  const beforeOpen = hour < 9 || (hour === 9 && minute < 30);
+  const afterClose = hour > 16 || (hour === 16 && minute > 0);
 
-  return isWeekend || isBeforeOpen || isAfterClose;
+  return isWeekend || beforeOpen || afterClose;
 }
+
 
 
 function getTicker() {
