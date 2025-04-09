@@ -96,7 +96,9 @@ const user = {
   moneyInStocks: undefined,
 };
 
-
+app.get('/', (req, res) => {
+  return res.redirect('login');
+});
 
 app.get('/login', (req, res) => {
   res.render('pages/login');
@@ -177,12 +179,16 @@ app.get('/orderhistory', async (req, res) => {
   }
 });
 
+// chart route
+app.get('/chart', (req, res) => {
+  res.render('pages/chart');
+});
+
 
 // *****************************************************
 // <!-- Start Server-->
 // *****************************************************
 // starting the server and keeping the connection open to listen for more requests
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(3000, () => {
+  console.log('Server is running at http://localhost:3000');
 });
-
