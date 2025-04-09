@@ -90,10 +90,14 @@ function startLiveChart() {
 
 function isMarketClosed() {
   const now = new Date();
-  const day = now.getDay();
-  const hour = now.getHours();
 
-  // Market is open mon-fri, 930am to 4pm est
+  // Convert to EST
+  const now_est = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+
+  const day = now_est.getDay();
+  const hour = now_est.getHours();
+
+  // Market is open mon-fri, 930am to 4pm *EST*
   const isWeekend = day === 0 || day === 6;
   const isBeforeOpen = hour < 9;
   const isAfterClose = hour >= 16;
