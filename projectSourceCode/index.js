@@ -197,6 +197,10 @@ app.get('/home', (req, res) => {
   res.render('pages/home');
 });
 
+app.get('/logout', (req, res) => {
+  res.render('pages/logout');
+});
+
 // Or if using API data:
 app.get('/leaderboard', async (req, res) => {
   try {
