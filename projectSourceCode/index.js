@@ -184,6 +184,29 @@ app.get('/chart', (req, res) => {
   res.render('pages/chart');
 });
 
+//discover route
+app.get('/discover', (req, res) => {
+  res.render('pages/discover');
+});
+
+app.get('/discover', (req, res) => {
+  res.render('pages/discover');
+});
+
+app.get('/home', (req, res) => {
+  res.render('pages/home');
+});
+
+// Or if using API data:
+app.get('/leaderboard', async (req, res) => {
+  try {
+    const leaderboardData = await getLeaderboardData(); // Your data function
+    res.render('pages/leaderboard', { data: leaderboardData });
+  } catch (error) {
+    res.status(500).send("Error loading leaderboard");
+  }
+});
+
 
 // *****************************************************
 // <!-- Start Server-->
