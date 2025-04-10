@@ -96,8 +96,13 @@ const user = {
 };
 
 app.get('/', (req, res) => {
-  return res.redirect('login');
+  if (req.session.user) {
+    return res.redirect('/discover');
+  } else {
+    return res.redirect('/login');
+  }
 });
+
 
 app.get('/login', (req, res) => {
   res.render('pages/login');
@@ -176,6 +181,19 @@ app.get('/orderhistory', async (req, res) => {
       console.error('Error fetching order history:', error);
       res.status(500).send('Internal Server Error');
   }
+});
+
+app.get('/discover', auth, (req, res) => {
+  res.render('pages/discover'); 
+});
+
+app.get('/logout', (req, res) => {
+  req.session.destroy(err => {
+    if (err) {
+      console.error("Logout error:", err);
+    }
+    res.redirect('/login');
+  });
 });
 
 // chart route
