@@ -10,7 +10,31 @@ services:
       - ./init_data/01-init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./init_data/pg_hba.conf:/etc/postgresql/pg_hba.conf
       - ./init_data/postgresql.conf:/etc/postgresql/postgresql.conf
-    command: postgres -c 'config_file=/etc/postgresql/postgresql.conf' -c 'hba_file=/etc/postgresql/pg_hba.conf'
+    command: >
+      postgres 
+      -c config_file=/etc/postgresql/postgresql.conf 
+      -c hba_file=/etc/postgresql/pg_hba.conf
+
+  api:
+    build: 
+      context: .
+      dockerfile: ./stock_api/Dockerfile
+    working_dir: /app
+    depends_on:
+      - db
+    ports:
+      - '8000:8000'
+    volumes:
+      - .:/app
+    environment:
+      - FLASK_ENV=development
+      - FLASK_APP=stock_api/server.py
+      - PGHOST=db
+      - PGUSER=${POSTGRES_USER}
+      - PGPASSWORD=${POSTGRES_PASSWORD}
+      - PGDATABASE=${POSTGRES_DB}
+      - PGPORT=5432
+    command: python3 stock_api/server.py
 
   web:
     build: 
@@ -30,27 +54,9 @@ services:
     ports:
       - '3000:3000'
     volumes:
-      - ./:/repository
+      - .:/repository
       - /repository/node_modules
-    command: >    
-      bash -c "npm install && npm start" 
-  api:
-    build: 
-      context: .
-      dockerfile: Dockerfile
-    depends_on:
-      - db
-    ports:
-      - '8000:8000'
-    volumes:
-      - ./:/app
-    environment:
-      - FLASK_ENV=development
-      - FLASK_APP=server.py
-      - PGHOST=db
-      - PGUSER=${POSTGRES_USER}
-      - PGPASSWORD=${POSTGRES_PASSWORD}
-      - PGDATABASE=${POSTGRES_DB}
-      - PGPORT=5432
+    command: bash -c "npm install && npm start"
+
 volumes:
   group-project:
