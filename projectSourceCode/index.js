@@ -74,9 +74,8 @@ db.connect()
 // ----------------------------------   API PROXY TO PYTHON SERVER   ----------------------------------
 
 app.use('/api', createProxyMiddleware({
-  target: 'http://python:5000',
-  changeOrigin: true,
-  pathRewrite: { '^/api': '' },
+  target: 'http://api:8000',
+  changeOrigin: true
 }));
 
 // ----------------------------------   ROUTES   ------------------------------------------------------
