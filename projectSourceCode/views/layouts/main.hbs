@@ -4,24 +4,17 @@
   <meta charset="UTF-8" />
   <title>Paper Trading App</title>
   <link rel="stylesheet" href="/style.css" />
-  {{{head}}}
+  {{>head}}
+  {{>nav}}
 </head>
 <body>
-  <header>
-    <h1>Welcome{{#if user}}, {{user.username}}{{/if}}</h1>
-    <nav>
-      <a href="/">Home</a> |
-      <a href="/chart">Chart</a> |
-      <a href="/logout">Logout</a>
-    </nav>
-  </header>
 
   <main>
     {{{body}}}
   </main>
 
   <footer>
-    <p>&copy; 2025 Paper Trading App</p>
+    {{> footer}}
   </footer>
 </body>
 </html>
