@@ -4,10 +4,10 @@ import yfinance as yf
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime
+from datetime import datetime, timezone
 
 app = Flask(__name__, static_folder='.')
-CORS(app)  # Enable CORS for all routes
+CORS(app)
 
 PORT = 8000
 
@@ -23,65 +23,81 @@ def get_db_connection():
 @app.route('/api/stock')
 def handle_stock_request():
     tickers = request.args.getlist('ticker')
+    live = request.args.get('live', 'false').lower() == 'true'
     results = []
 
     for symbol in tickers:
         try:
-            # First try to get from database
+            symbol = symbol.upper()
+
+            if live:
+                stock = yf.Ticker(symbol)
+                info = stock.info
+                price = info.get("regularMarketPrice")
+                name = info.get("shortName")
+
+                results.append({
+                    "ticker": symbol,
+                    "name": name,
+                    "price": price
+                })
+                continue
+
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("SELECT * FROM stocks WHERE symbol = %s", (symbol.upper(),))
+
+            cur.execute("SELECT * FROM stocks WHERE symbol = %s", (symbol,))
             db_stock = cur.fetchone()
-            
+
             if db_stock:
-                # Update price if data is older than 5 minutes
-                if (datetime.now() - db_stock['last_updated']).total_seconds() > 300:
-                    stock = yf.Ticker(symbol.upper())
+                last_updated = db_stock['last_updated']
+                now = datetime.now(timezone.utc)
+                if (now - last_updated).total_seconds() > 300:
+                    stock = yf.Ticker(symbol)
                     info = stock.info
                     new_price = info.get("regularMarketPrice")
-                    
+
                     cur.execute(
                         "UPDATE stocks SET last_price = %s, last_updated = CURRENT_TIMESTAMP WHERE symbol = %s",
-                        (new_price, symbol.upper())
+                        (new_price, symbol)
                     )
                     conn.commit()
-                    
+
                     results.append({
-                        "ticker": symbol.upper(),
+                        "ticker": symbol,
                         "name": db_stock['company_name'],
                         "price": new_price
                     })
                 else:
                     results.append({
-                        "ticker": symbol.upper(),
+                        "ticker": symbol,
                         "name": db_stock['company_name'],
                         "price": db_stock['last_price']
                     })
             else:
-                # If not in database, fetch from Yahoo Finance and store
-                stock = yf.Ticker(symbol.upper())
+                stock = yf.Ticker(symbol)
                 info = stock.info
                 name = info.get("shortName")
                 price = info.get("regularMarketPrice")
-                
+
                 cur.execute(
                     "INSERT INTO stocks (symbol, company_name, last_price) VALUES (%s, %s, %s)",
-                    (symbol.upper(), name, price)
+                    (symbol, name, price)
                 )
                 conn.commit()
-                
+
                 results.append({
-                    "ticker": symbol.upper(),
+                    "ticker": symbol,
                     "name": name,
                     "price": price
                 })
-            
+
             cur.close()
             conn.close()
-            
+
         except Exception as e:
             results.append({
-                "ticker": symbol.upper(),
+                "ticker": symbol,
                 "error": str(e)
             })
 

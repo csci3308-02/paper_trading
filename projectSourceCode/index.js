@@ -187,7 +187,7 @@ app.get('/discover', auth, (req, res) => {
   res.render('pages/discover'); 
 });
 
-app.get('/logout', (req, res) => {
+app.post('/logout', (req, res) => {
   req.session.destroy(err => {
     if (err) {
       console.error("Logout error:", err);
@@ -206,16 +206,8 @@ app.get('/discover', (req, res) => {
   res.render('pages/discover');
 });
 
-app.get('/discover', (req, res) => {
-  res.render('pages/discover');
-});
-
 app.get('/home', (req, res) => {
   res.render('pages/home');
-});
-
-app.get('/logout', (req, res) => {
-  res.render('pages/logout');
 });
 
 // Or if using API data:

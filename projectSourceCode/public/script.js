@@ -53,7 +53,7 @@ function startLiveChart() {
   chart = new Chart(ctx, getChartConfig(ticker, [], [], null, null));
 
   interval = setInterval(() => {
-    fetch(`/api/stock?ticker=${ticker}`)
+    fetch(`/api/stock?ticker=${ticker}&live=true`)
       .then(res => res.json())
       .then(data => {
         const stock = data[0];
