@@ -38,6 +38,11 @@ function simulateChart() {
 }
 
 function startLiveChart() {
+  if (isMarketClosed()) {
+    alert("Market is closed. Please try again during market hours.");
+    return;
+  }
+
   clearInterval(interval);
   historicalData = [];
 
@@ -53,26 +58,52 @@ function startLiveChart() {
   chart = new Chart(ctx, getChartConfig(ticker, [], [], null, null));
 
   interval = setInterval(() => {
-    fetch(`/api/stock?ticker=${ticker}&live=true`)
-      .then(res => res.json())
-      .then(data => {
-        const stock = data[0];
-        if (!stock || !stock.price) return;
+    fetch(`/api/stock?ticker=${ticker}`)
+  .then(res => res.json())
+  .then(data => {
+    const stock = data[0];
+    if (!stock || stock.price == null) return;
 
-        const now = new Date();
-        chart.data.labels.push(now.toISOString());
-        chart.data.datasets[0].data.push(stock.price);
+    const now = new Date();
+    const price = parseFloat(stock.price);
 
-        const [min, max] = getMinMax(chart.data.datasets[0].data);
-        const buffer = (max - min) * 0.03;
-        chart.options.scales.y.min = min - buffer;
-        chart.options.scales.y.max = max + buffer;
+    if (!chart) {
+      const ctx = document.getElementById("stockChart").getContext("2d");
+      chart = new Chart(ctx, getChartConfig(ticker, [now.toISOString()], [price], price - 1, price + 1));
+    } else {
+      chart.data.labels.push(now.toISOString());
+      chart.data.datasets[0].data.push(price);
 
-        chart.update();
+      const [min, max] = getMinMax(chart.data.datasets[0].data);
+      const buffer = (max - min) * 0.03;
+      chart.options.scales.y.min = min - buffer;
+      chart.options.scales.y.max = max + buffer;
 
-        setText("currentPrice", `${stock.name} (${stock.ticker}): $${stock.price.toFixed(2)} @ ${formatTime(now)}`);
-      });
+      chart.update();
+    }
+
+    setText("currentPrice", `${stock.name} (${stock.ticker}): $${price.toFixed(2)} @ ${formatTime(now)}`);
+  });
+
   }, 1000);
+}
+
+function isMarketClosed() {
+  const now = new Date();
+
+  // Convert to EST
+  const now_est = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+
+  const day = now_est.getDay();
+  const hour = now_est.getHours();
+  const minute = now_est.getMinutes();
+
+  //market is open mon-fri, 930am to 4pm *EST*
+  const isWeekend = day === 0 || day === 6;
+  const beforeOpen = hour < 9 || (hour === 9 && minute < 30);
+  const afterClose = hour > 16 || (hour === 16 && minute > 0);
+
+  return isWeekend || beforeOpen || afterClose;
 }
 
 function getTicker() {
