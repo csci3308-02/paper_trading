@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{title}}</title> <!--should this be {{>title}}? -->
+    <title>{{>title}}</title> <!--should this be {{title}}? -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .market-change-positive {
@@ -28,32 +28,12 @@
     </style>
 </head>
 <body>
-    <!-- Section 1: Market Data and Login -->
+    <!-- Section 1: Market Data and Login/out button-->
     <div class="container-fluid py-1 bg-light border-bottom">
         <div class="row align-items-center">
             <div class="col-md-8">
                 <div class="d-flex flex-wrap align-items-center market-data-container gap-3">
-                    <div class="d-flex align-items-center">
-                        <span class="fw-bold me-1">DOW:</span>
-                        <span>{{formatNumber marketData.dow.price}}</span>
-                        <span class="ms-1 {{#if marketData.dow.positive}}market-change-positive{{else}}market-change-negative{{/if}}">
-                            ({{marketData.dow.change}} {{#if marketData.dow.positive}}▲{{else}}▼{{/if}})
-                        </span>
-                    </div>
-                    <div class="d-flex align-items-center">
-                        <span class="fw-bold me-1">NASDAQ:</span>
-                        <span>{{formatNumber marketData.nasdaq.price}}</span>
-                        <span class="ms-1 {{#if marketData.nasdaq.positive}}market-change-positive{{else}}market-change-negative{{/if}}">
-                            ({{marketData.nasdaq.change}} {{#if marketData.nasdaq.positive}}▲{{else}}▼{{/if}})
-                        </span>
-                    </div>
-                    <div class="d-flex align-items-center">
-                        <span class="fw-bold me-1">S&P 500:</span>
-                        <span>{{formatNumber marketData.sp500.price}}</span>
-                        <span class="ms-1 {{#if marketData.sp500.positive}}market-change-positive{{else}}market-change-negative{{/if}}">
-                            ({{marketData.sp500.change}} {{#if marketData.sp500.positive}}▲{{else}}▼{{/if}})
-                        </span>
-                    </div>
+                    
                     <div class="timestamp">
                         As of: {{marketData.timestamp}}
                     </div>
@@ -75,7 +55,7 @@
     <div class="container-fluid py-2 border-bottom">
         <div class="d-flex justify-content-between align-items-center">
             <a href="/" class="text-decoration-none">
-                <img src="/images/logo-placeholder.png" alt="Paper Trading App" class="logo-img">
+                <img src="https://png.pngtree.com/png-vector/20240905/ourmid/pngtree-charging-bull-in-downtown-manhattan-financial-architecture-wall-png-image_13771276.png" alt="Paper Trading App" class="logo-img">
             </a>
             <div class="d-flex gap-2">
                 {{#if user}}
@@ -121,10 +101,6 @@
         </div>
     </div>
     
-    <!-- Main content will go here -->
-    <div class="container-fluid my-3">
-        {{{body}}}
-    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
