@@ -2,6 +2,37 @@ let chart;
 let interval;
 let historicalData = [];
 
+function displayStockInfo(data) {
+  const infoBox = document.getElementById("stockInfoBox");
+  if (!data) return infoBox.innerHTML = '';
+
+  infoBox.innerHTML = `
+    <h3>${data.name} (${data.ticker})</h3>
+    <ul>
+      <li><strong>Current Price:</strong> $${data.price?.toFixed(2) || 'N/A'}</li>
+      <li><strong>Previous Close:</strong> $${data.previousClose?.toFixed(2) || 'N/A'}</li>
+      <li><strong>Open:</strong> $${data.open?.toFixed(2) || 'N/A'}</li>
+      <li><strong>High today:</strong> $${data.dayHigh?.toFixed(2) || 'N/A'}</li>
+      <li><strong>Low today:</strong> $${data.dayLow?.toFixed(2) || 'N/A'}</li>
+      <li><strong>52 Week High:</strong> $${data.yearHigh?.toFixed(2) || 'N/A'}</li>
+      <li><strong>52 Week Low:</strong> $${data.yearLow?.toFixed(2) || 'N/A'}</li>
+      <li><strong>Day Range:</strong> $${(data.dayHigh - data.dayLow).toFixed(2) || 'N/A'}</li>
+      <li><strong>52 Week Range:</strong> $${(data.yearHigh - data.yearLow).toFixed(2) || 'N/A'}</li>
+      <li><strong>Volume:</strong> ${data.volume?.toLocaleString() || 'N/A'}</li>
+      <li><strong>Market Cap:</strong> $${formatMarketCap(data.marketCap) || 'N/A'}</li>
+    </ul>
+  `;
+}
+
+function formatMarketCap(num) {
+  if (!num || isNaN(num)) return "N/A";
+  if (num >= 1e12) return (num / 1e12).toFixed(2) + "T";
+  if (num >= 1e9) return (num / 1e9).toFixed(2) + "B";
+  if (num >= 1e6) return (num / 1e6).toFixed(2) + "M";
+  if (num >= 1e3) return (num / 1e3).toFixed(2) + "K";
+  return num.toString();
+}
+
 function simulateChart() {
   clearInterval(interval);
   historicalData = [];
@@ -33,6 +64,11 @@ function simulateChart() {
 
       const latest = data.at(-1);
       setText("currentPrice", `${ticker}: $${latest.price.toFixed(2)} @ ${formatTime(latest.time)}`);
+
+      fetch(`/api/stock?ticker=${ticker}&live=true`)
+        .then(res => res.json())
+        .then(data => displayStockInfo(data[0]))
+        .catch(err => console.error("Info fetch failed", err));
     })
     .catch(err => setText("currentPrice", `Error: ${err.message}`));
 }
@@ -59,27 +95,28 @@ function startLiveChart() {
 
   interval = setInterval(() => {
     fetch(`/api/stock?ticker=${ticker}&live=true`)
-  .then(res => res.json())
-  .then(data => {
-    const stock = data[0];
-    if (!stock || stock.price == null) return;
+    .then(res => res.json())
+    .then(data => {
+      displayStockInfo(data[0]);
+      const stock = data[0];
+      if (!stock || stock.price == null) return;
 
-    const now = new Date();
-    const price = parseFloat(stock.price);
+      const now = new Date();
+      const price = parseFloat(stock.price);
 
-    if (!chart) {
-      const ctx = document.getElementById("stockChart").getContext("2d");
-      chart = new Chart(ctx, getChartConfig(ticker, [now.toISOString()], [price], price - 1, price + 1));
-    } else {
-      chart.data.labels.push(now.toISOString());
-      chart.data.datasets[0].data.push(price);
+      if (!chart) {
+        const ctx = document.getElementById("stockChart").getContext("2d");
+        chart = new Chart(ctx, getChartConfig(ticker, [now.toISOString()], [price], price - 1, price + 1));
+      } else {
+        chart.data.labels.push(now.toISOString());
+        chart.data.datasets[0].data.push(price);
 
-      const [min, max] = getMinMax(chart.data.datasets[0].data);
-      const buffer = (max - min) * 0.03;
-      chart.options.scales.y.min = min - buffer;
-      chart.options.scales.y.max = max + buffer;
+        const [min, max] = getMinMax(chart.data.datasets[0].data);
+        const buffer = (max - min) * 0.03;
+        chart.options.scales.y.min = min - buffer;
+        chart.options.scales.y.max = max + buffer;
 
-      chart.update();
+        chart.update();
     }
 
     setText("currentPrice", `${stock.name} (${stock.ticker}): $${price.toFixed(2)} @ ${formatTime(now)}`);
