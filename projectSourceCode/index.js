@@ -75,7 +75,13 @@ db.connect()
 
 app.use('/api', createProxyMiddleware({
   target: 'http://api:8000',
-  changeOrigin: true
+  changeOrigin: true,
+  onProxyReq: (proxyReq, req, res) => {
+    // Forward the user ID from session to the Python API
+    if (req.session.user) {
+      proxyReq.setHeader('X-User-ID', req.session.user.user_id);
+    }
+  }
 }));
 
 // ----------------------------------   ROUTES   ------------------------------------------------------
@@ -144,8 +150,8 @@ app.post('/register', async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     await db.none(
-      "INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3)",
-      [username, email, hashedPassword]
+      "INSERT INTO users (username, email, password_hash, balance) VALUES ($1, $2, $3, $4)",
+      [username, email, hashedPassword, 10000.00]
     );
     res.redirect('/login');
   } catch (error) {
@@ -168,13 +174,13 @@ app.get('/api/search/:query', async (req, res) => {
 // API route for Order History Page
 app.get('/orderhistory', async (req, res) => {
   if (!req.session.user) {
-      return res.redirect('/login'); // Redirect if not logged in !! create login API
+      return res.redirect('/login');
   }
 
   try {
       const orders = await db.any(
-          'SELECT stock_name, symbol, price, quantity, type, created_at FROM orders WHERE user_id = $1 ORDER BY created_at DESC', // sample query can change depending on info needed
-          [req.session.user.id]
+          'SELECT s.company_name as stock_name, s.symbol, t.price, t.quantity, t.transaction_type as type, t.transaction_date as created_at FROM transactions t JOIN stocks s ON t.stock_id = s.stock_id WHERE t.user_id = $1 ORDER BY t.transaction_date DESC',
+          [req.session.user.user_id]
       );
       res.render('pages/orderhistory', { orders });
   } catch (error) {
@@ -220,6 +226,9 @@ app.get('/leaderboard', async (req, res) => {
   }
 });
 
+app.get('/trade', auth, (req, res) => {
+    res.render('pages/trade');
+});
 
 // *****************************************************
 // <!-- Start Server-->
