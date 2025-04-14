@@ -25,16 +25,26 @@
   <button onclick="simulateChart()">Simulate Chart</button>
   <button onclick="startLiveChart()">Start Live Chart</button>
   <button onclick="chart.resetZoom()">Reset Zoom</button>
-
 </div>
 
 <div id="currentPrice"></div>
 <div id="chartDate" style="margin: 10px 0; font-style: italic;"></div>
 
-<div id="chartContainer">
-  <canvas id="stockChart" width="1000" height="500"></canvas>
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+  <!-- Chart -->
+  <div style="flex: 3; min-width: 600px;" id="chartContainer">
+    <canvas id="stockChart" width="1000" height="500"></canvas>
+  </div>
+
+  <!-- Info -->
+  <div
+    id="stockInfoBox"
+    style="flex: 1; min-width: 250px; background: #f9f9f9; padding: 15px; border-left: 1px solid #ccc; border-radius: 8px;"
+  >
+  </div>
 </div>
 
+<!-- Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>

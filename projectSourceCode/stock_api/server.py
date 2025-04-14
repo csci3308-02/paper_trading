@@ -33,13 +33,18 @@ def handle_stock_request():
             if live:
                 stock = yf.Ticker(symbol)
                 info = stock.info
-                price = info.get("regularMarketPrice")
-                name = info.get("shortName")
-
                 results.append({
                     "ticker": symbol,
-                    "name": name,
-                    "price": price
+                    "name": info.get("shortName"),
+                    "price": info.get("regularMarketPrice"),
+                    "open": info.get("open"),
+                    "previousClose": info.get("previousClose"),
+                    "dayLow": info.get("dayLow"),
+                    "dayHigh": info.get("dayHigh"),
+                    "yearLow": info.get("fiftyTwoWeekLow"),
+                    "yearHigh": info.get("fiftyTwoWeekHigh"),
+                    "marketCap": info.get("marketCap"),
+                    "volume": info.get("volume")
                 })
                 continue
 
