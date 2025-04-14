@@ -154,16 +154,18 @@ app.post('/register', async (req, res) => {
   }
 });
 
-app.get('/api/search/:query', async (req, res) => {
-  try {
-    const { query } = req.params;
-    // Use Yahoo for search
-    const results = await yahooFinance.search(query);
-    res.json(results.quotes || []);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+app.use('/api/search', createProxyMiddleware({
+  target: 'http://api:8000',
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api/search': '/api/search' // Ensure path is preserved
+  },
+  onProxyReq: (proxyReq, req, res) => {
+    console.log(`Proxying request: ${req.originalUrl}`) // Debug logging
   }
-});
+}));
+
+
 
 // API route for Order History Page
 app.get('/orderhistory', async (req, res) => {
@@ -196,9 +198,30 @@ app.post('/logout', (req, res) => {
   });
 });
 
+// Add API endpoint for historical data Havent tested maybe remove
+app.get('/api/history', async (req, res) => {
+  const { ticker, period, interval } = req.query;
+  try {
+    // Replace this with your actual data-fetching logic (e.g., Yahoo Finance API)
+    const mockData = [
+      { time: "2024-01-01T09:30:00", price: 150.00 },
+      { time: "2024-01-01T10:00:00", price: 152.50 },
+      // ... more data points
+    ];
+    res.json(mockData);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch historical data" });
+  }
+});
+
+
 // chart route
 app.get('/chart', (req, res) => {
-  res.render('pages/chart');
+  const symbol = req.query.symbol || ''; // Get symbol from URL (e.g., /chart?symbol=AAPL)
+  res.render('pages/chart', { 
+    title: `${symbol || 'Stock'} Chart`, 
+    symbol: symbol // Pass symbol to pre-fill input
+  });
 });
 
 //discover route

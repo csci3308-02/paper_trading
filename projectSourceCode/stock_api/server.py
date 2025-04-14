@@ -120,6 +120,106 @@ def handle_history_request():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/search')
+def handle_search_request():
+    query = request.args.get('query', '').strip().lower()
+    
+    if not query or len(query) < 2:
+        return jsonify([])
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Search cached stocks first (faster)
+        cur.execute("""
+            SELECT 
+                s.symbol, 
+                s.company_name as name,
+                s.last_price as price,
+                CASE 
+                    WHEN s.last_updated > NOW() - INTERVAL '15 minutes' THEN 'live'
+                    ELSE 'cached'
+                END as status
+            FROM stocks s
+            WHERE 
+                LOWER(s.symbol) LIKE %s OR 
+                LOWER(s.company_name) LIKE %s
+            ORDER BY 
+                CASE 
+                    WHEN LOWER(s.symbol) = %s THEN 0
+                    WHEN LOWER(s.symbol) LIKE %s THEN 1
+                    ELSE 2
+                END
+            LIMIT 10
+        """, (
+            f'{query}%',
+            f'%{query}%',
+            query,
+            f'{query}%'
+        ))
+        
+        results = cur.fetchall()
+        
+        # If we found exact or prefix matches, return them immediately
+        if any(r['symbol'].lower() == query for r in results):
+            cur.close()
+            conn.close()
+            return jsonify(results)
+        
+        # Fall back to Yahoo Finance for more results
+        yf_results = []
+        search_data = yf.Tickers(query)
+        
+        for symbol, ticker in search_data.tickers.items():
+            try:
+                info = ticker.info
+                yf_results.append({
+                    "symbol": symbol,
+                    "name": info.get('shortName', info.get('longName', symbol)),
+                    "price": info.get('regularMarketPrice'),
+                    "status": "live"
+                })
+                
+                # Cache new results
+                cur.execute("""
+                    INSERT INTO stocks (symbol, company_name, last_price)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (symbol) 
+                    DO UPDATE SET 
+                        company_name = EXCLUDED.company_name,
+                        last_price = EXCLUDED.last_price,
+                        last_updated = CASE 
+                            WHEN stocks.last_updated < NOW() - INTERVAL '15 minutes' 
+                            THEN NOW() 
+                            ELSE stocks.last_updated 
+                        END
+                """, (
+                    symbol,
+                    info.get('shortName', info.get('longName', symbol)),
+                    info.get('regularMarketPrice')
+                ))
+                
+            except Exception as e:
+                print(f"Failed to process {symbol}: {str(e)}")
+                continue
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        # Combine and deduplicate results
+        combined = {r['symbol']: r for r in results}
+        for r in yf_results:
+            if r['symbol'] not in combined:
+                combined[r['symbol']] = r
+        
+        return jsonify(list(combined.values())[:10])
+        
+    except Exception as e:
+        print(f"Search error: {str(e)}")
+        return jsonify({"error": "Search service unavailable"}), 500
+
 # Serve static files
 @app.route('/')
 def serve_index():

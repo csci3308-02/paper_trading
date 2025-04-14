@@ -1,7 +1,11 @@
 <h1>Stock Chart Simulator</h1>
 
 <div class="controls">
-  <input type="text" id="tickerInput" placeholder="Enter Ticker (e.g., AAPL)" />
+<input 
+  type="text" 
+  id="tickerInput" 
+  placeholder="Enter Ticker (e.g., AAPL)" 
+  value="{{symbol}}" <!-- Pre-fill if symbol exists -->/>
   <label for="periodSelect">Period:</label>
   <select id="periodSelect">
     <option value="1d">1 Day</option>
@@ -40,3 +44,16 @@
 <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1"></script>
 <script src="/script.js" defer></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const tickerInput = document.getElementById('tickerInput');
+    const urlParams = new URLSearchParams(window.location.search);
+    const symbol = urlParams.get('symbol');
+
+    if (symbol) {
+      tickerInput.value = symbol;
+      // Optional: Auto-trigger chart load
+      setTimeout(() => simulateChart(), 300); 
+    }
+  });
+</script>

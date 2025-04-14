@@ -62,6 +62,8 @@ CREATE INDEX idx_holdings_user_id ON holdings(user_id);
 CREATE INDEX idx_transactions_user_id ON transactions(user_id);
 CREATE INDEX idx_watchlist_items_watchlist_id ON watchlist_items(watchlist_id);
 CREATE INDEX idx_stocks_symbol ON stocks(symbol);
+CREATE INDEX idx_stocks_search ON stocks (LOWER(symbol), LOWER(company_name));
+CREATE INDEX idx_stocks_recency ON stocks (last_updated DESC);
 
 -- Insert sample stocks
 INSERT INTO stocks (symbol, company_name, last_price) VALUES
