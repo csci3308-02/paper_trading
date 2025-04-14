@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{>title}}</title> <!--should this be {{title}}? -->
+    <title>{{title}}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <style>
-        .market-change-positive {
-            color: #28a745; /* Bootstrap success green */
-        }
-        .market-change-negative {
-            color: #dc3545; /* Bootstrap danger red */
-        }
-        .search-section {
-            background-color: #ff00ff; /* Fuchsia */
-        }
         .logo-img {
-            height: 40px;
+            height: 40px; 
+            width: auto;
+            transition: all 0.3s ease; /* Smooth hover effect */
         }
-        .market-data-container {
-            font-size: 0.9rem;
+        .logo-img:hover {
+            transform: scale(1.05); /* Subtle hover animation */
         }
-        .timestamp {
-            font-size: 0.8rem;
-            color: #6c757d;
+        .market-change-positive { color: #28a745; }
+        .market-change-negative { color: #dc3545; }
+        .search-container { position: relative; }
+        #searchResults {
+            position: absolute;
+            width: 100%;
+            z-index: 1000;
+            display: none;
         }
+        .search-result-item { cursor: pointer; }
+        .search-result-item:hover { background-color: #f8f9fa; }
+        .timestamp { font-size: 0.8rem; color: #6c757d; }
     </style>
 </head>
 <body>
-    <!-- Section 1: Market Data and Login/out button-->
+    <!-- Section 1: Market Data and Login/out button -->
     <div class="container-fluid py-1 bg-light border-bottom">
         <div class="row align-items-center">
             <div class="col-md-8">
                 <div class="d-flex flex-wrap align-items-center market-data-container gap-3">
-                    
                     <div class="timestamp">
                         As of: {{marketData.timestamp}}
                     </div>
@@ -56,15 +56,18 @@
     <div class="container-fluid py-2 border-bottom">
         <div class="d-flex justify-content-between align-items-center">
             <a href="/" class="text-decoration-none">
-                <img src="https://png.pngtree.com/png-vector/20240905/ourmid/pngtree-charging-bull-in-downtown-manhattan-financial-architecture-wall-png-image_13771276.png" alt="Paper Trading App" class="logo-img">
+                <img src="https://png.pngtree.com/png-vector/20240905/ourmid/pngtree-charging-bull-in-downtown-manhattan-financial-architecture-wall-png-image_13771276.png" 
+                     alt="Paper Trading App" 
+                     class="logo-img">
             </a>
             <div class="d-flex gap-2">
                 {{#if user}}
                     <div class="dropdown">
-                        <button class="btn btn-outline-secondary dropdown-toggle btn-sm" type="button" id="alertsDropdown" data-bs-toggle="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle btn-sm" type="button" 
+                                data-bs-toggle="dropdown">
                             Alerts
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="alertsDropdown">
+                        <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item" href="#">Alert 1</a></li>
                             <li><a class="dropdown-item" href="#">Alert 2</a></li>
                             <li><hr class="dropdown-divider"></li>
@@ -72,10 +75,11 @@
                         </ul>
                     </div>
                     <div class="dropdown">
-                        <button class="btn btn-outline-primary dropdown-toggle btn-sm" type="button" id="profileDropdown" data-bs-toggle="dropdown">
+                        <button class="btn btn-outline-primary dropdown-toggle btn-sm" type="button" 
+                                data-bs-toggle="dropdown">
                             Profile
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="profileDropdown">
+                        <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item" href="/profile">My Account</a></li>
                             <li><a class="dropdown-item" href="/portfolio">My Portfolio</a></li>
                             <li><a class="dropdown-item" href="/settings">Settings</a></li>
@@ -87,17 +91,22 @@
     </div>
     
     <!-- Section 3: Search Bar -->
-    <div class="container-fluid py-2 search-section">
+    <div class="container-fluid py-2 bg-light">
         <div class="row">
-            <div class="col-md-6">
-                <form class="d-flex">
+            <div class="col-md-6 search-container">
+                <form class="d-flex" id="searchForm">
                     <div class="input-group">
-                        <input type="text" class="form-control form-control-sm" placeholder="Search stocks, symbols, or companies...">
+                        <input type="text" 
+                               id="searchInput" 
+                               class="form-control form-control-sm" 
+                               placeholder="Search stocks (e.g. AAPL)"
+                               autocomplete="off">
                         <button class="btn btn-dark btn-sm" type="submit">
-                            <i class="bi bi-search"></i> Search
+                            <i class="bi bi-search"></i>
                         </button>
                     </div>
                 </form>
+                <div id="searchResults" class="list-group mt-1"></div>
             </div>
         </div>
     </div>
