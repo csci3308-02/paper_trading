@@ -76,13 +76,13 @@
                     </div>
                     <div class="dropdown">
                         <button class="btn btn-outline-primary dropdown-toggle btn-sm" type="button" 
-                                data-bs-toggle="dropdown">
-                            Profile
+                                data-bs-toggle="dropdown" aria-expanded="false">
+                        Profile
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="/profile">My Account</a></li>
-                            <li><a class="dropdown-item" href="/portfolio">My Portfolio</a></li>
-                            <li><a class="dropdown-item" href="/settings">Settings</a></li>
+                        <li><a class="dropdown-item" href="/profile">My Account</a></li>
+                        <li><a class="dropdown-item" href="/portfolio">My Portfolio</a></li>
+                        <li><a class="dropdown-item" href="/settings">Settings</a></li>
                         </ul>
                     </div>
                 {{/if}}
@@ -110,5 +110,105 @@
             </div>
         </div>
     </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('searchInput');
+        const searchResults = document.getElementById('searchResults');
+        let searchTimeout;
+        
+        // Handle search input
+        searchInput.addEventListener('input', function(e) {
+            clearTimeout(searchTimeout);
+            const query = e.target.value.trim();
+            
+            if (query.length < 2) {
+                searchResults.style.display = 'none';
+                return;
+            }
+            
+            searchTimeout = setTimeout(() => {
+                fetchSearchResults(query);
+            }, 300);
+        });
+        
+        // Handle form submission
+        document.getElementById('searchForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const query = searchInput.value.trim();
+            if (query) {
+                window.location.href = `/chart?symbol=${encodeURIComponent(query)}`;
+            }
+        });
+        
+        // Click outside to close results
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.search-container')) {
+                searchResults.style.display = 'none';
+            }
+        });
+        
+        async function fetchSearchResults(query) {
+            try {
+                searchResults.innerHTML = `
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-center">
+                            <div class="spinner-border spinner-border-sm" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <span class="ms-2">Searching...</span>
+                        </div>
+                    </div>
+                `;
+                searchResults.style.display = 'block';
+                
+                const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
+                
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (data.length === 0) {
+                    searchResults.innerHTML = `
+                        <div class="list-group-item text-muted">
+                            No results found for "${query}"
+                        </div>
+                    `;
+                    return;
+                }
+                
+                searchResults.innerHTML = data.map(item => `
+                    <a href="/chart?symbol=${encodeURIComponent(item.symbol)}" 
+                       class="list-group-item list-group-item-action search-result-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${item.symbol}</strong>
+                                <span class="text-muted ms-2">${item.name || item.symbol}</span>
+                            </div>
+                            ${typeof item.price === 'number' ? 
+                              `<span class="text-primary">$${item.price.toFixed(2)}</span>` : 
+                              '<span class="text-muted">N/A</span>'}
+                        </div>
+                    </a>
+                `).join('');
+                
+            } catch (error) {
+                searchResults.innerHTML = `
+                    <div class="list-group-item text-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        ${error.message}
+                    </div>
+                `;
+                console.error('Search error:', error);
+            }
+        }
+    });
+</script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
