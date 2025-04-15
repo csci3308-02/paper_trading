@@ -97,26 +97,26 @@ function startLiveChart() {
     fetch(`/api/stock?ticker=${ticker}&live=true`)
     .then(res => res.json())
     .then(data => {
-      displayStockInfo(data[0]);
-      const stock = data[0];
-      if (!stock || stock.price == null) return;
+    displayStockInfo(data[0]);
+    const stock = data[0];
+    if (!stock || stock.price == null) return;
 
-      const now = new Date();
-      const price = parseFloat(stock.price);
+    const now = new Date();
+    const price = parseFloat(stock.price);
 
-      if (!chart) {
-        const ctx = document.getElementById("stockChart").getContext("2d");
-        chart = new Chart(ctx, getChartConfig(ticker, [now.toISOString()], [price], price - 1, price + 1));
-      } else {
-        chart.data.labels.push(now.toISOString());
-        chart.data.datasets[0].data.push(price);
+    if (!chart) {
+      const ctx = document.getElementById("stockChart").getContext("2d");
+      chart = new Chart(ctx, getChartConfig(ticker, [now.toISOString()], [price], price - 1, price + 1));
+    } else {
+      chart.data.labels.push(now.toISOString());
+      chart.data.datasets[0].data.push(price);
 
-        const [min, max] = getMinMax(chart.data.datasets[0].data);
-        const buffer = (max - min) * 0.03;
-        chart.options.scales.y.min = min - buffer;
-        chart.options.scales.y.max = max + buffer;
+      const [min, max] = getMinMax(chart.data.datasets[0].data);
+      const buffer = (max - min) * 0.03;
+      chart.options.scales.y.min = min - buffer;
+      chart.options.scales.y.max = max + buffer;
 
-        chart.update();
+      chart.update();
     }
 
     setText("currentPrice", `${stock.name} (${stock.ticker}): $${price.toFixed(2)} @ ${formatTime(now)}`);
