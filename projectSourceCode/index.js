@@ -243,6 +243,150 @@ app.get('/leaderboard', async (req, res) => {
   }
 });
 
+// portfolio calculator/controller
+async function getPortfolioData(userId) {
+  try {
+    // Retrieve user information.
+    const userResult = await db.one(
+      'SELECT user_id, username, email, balance, created_at FROM users WHERE user_id = $1',
+      [userId]
+    );
+    const user = userResult;
+
+    // Retrieve holdings and join with stock details.
+    const holdingsResult = await db.any(
+      `SELECT h.quantity, s.symbol, s.company_name, s.last_price 
+       FROM holdings h 
+       JOIN stocks s ON h.stock_id = s.stock_id
+       WHERE h.user_id = $1`,
+      [userId]
+    );
+
+    // Calculate the total value of holdings.
+    const holdingsValue = holdingsResult.reduce((acc, holding) => {
+      return acc + parseFloat(holding.quantity) * parseFloat(holding.last_price);
+    }, 0);
+
+    // Retrieve transactions for display (ordered descending).
+    const transactionsDisplay = await db.any(
+      `SELECT t.transaction_date, t.transaction_type, t.quantity, t.price, s.symbol
+       FROM transactions t
+       JOIN stocks s ON t.stock_id = s.stock_id
+       WHERE t.user_id = $1
+       ORDER BY t.transaction_date DESC`,
+      [userId]
+    );
+
+    // Retrieve transactions for statistics calculations (ordered ascending for FIFO matching).
+    const transactionsStats = await db.any(
+      `SELECT t.transaction_date, t.transaction_type, t.quantity, t.price, s.symbol
+       FROM transactions t
+       JOIN stocks s ON t.stock_id = s.stock_id
+       WHERE t.user_id = $1
+       ORDER BY t.transaction_date ASC`,
+      [userId]
+    );
+
+    // Compute total return: current balance + current holdings value minus initial investment.
+    const totalReturn = parseFloat(user.balance) + holdingsValue - 10000;
+
+    // --- Compute trade-level statistics using FIFO matching ---
+    let stats = {
+      totalProfit: 0,
+      totalTrades: 0,
+      winningTrades: 0,
+      biggestWin: -Infinity,
+      biggestLoss: Infinity
+    };
+
+    // Create a buy queue for each stock symbol to implement FIFO matching.
+    let buyQueues = {};
+
+    for (let transaction of transactionsStats) {
+      const symbol = transaction.symbol;
+      const type = transaction.transaction_type;
+      const quantity = parseFloat(transaction.quantity);
+      const price = parseFloat(transaction.price);
+
+      // Initialize queue for the stock if it doesn't exist.
+      if (!buyQueues[symbol]) {
+        buyQueues[symbol] = [];
+      }
+
+      if (type === 'BUY') {
+        // Add buy transaction to the corresponding queue.
+        buyQueues[symbol].push({ quantity, price });
+      } else if (type === 'SELL') {
+        let remaining = quantity;
+        let tradeProfit = 0;
+
+        // Dequeue matching BUY orders for this SELL transaction.
+        while (remaining > 0 && buyQueues[symbol].length > 0) {
+          let buyOrder = buyQueues[symbol][0];
+          let available = buyOrder.quantity;
+          let used = Math.min(remaining, available);
+
+          // Compute profit: (sell price - buy price) * shares sold.
+          tradeProfit += used * (price - buyOrder.price);
+          buyOrder.quantity -= used;
+          remaining -= used;
+
+          // Remove the buy order if it has been fully matched.
+          if (buyOrder.quantity <= 0) {
+            buyQueues[symbol].shift();
+          }
+        }
+
+        // Treat each SELL as closing one aggregated trade.
+        stats.totalTrades++;
+        stats.totalProfit += tradeProfit;
+        if (tradeProfit > 0) {
+          stats.winningTrades++;
+        }
+        stats.biggestWin = Math.max(stats.biggestWin, tradeProfit);
+        stats.biggestLoss = Math.min(stats.biggestLoss, tradeProfit);
+      }
+    }
+
+    const averageReturn = stats.totalTrades > 0 ? stats.totalProfit / stats.totalTrades : 0;
+    const winRate = stats.totalTrades > 0 ? (stats.winningTrades / stats.totalTrades) * 100 : 0;
+    // Handle cases where no trades were processed.
+    if (stats.biggestWin === -Infinity) stats.biggestWin = 0;
+    if (stats.biggestLoss === Infinity) stats.biggestLoss = 0;
+
+    const statistics = {
+      totalReturn: totalReturn.toFixed(2),
+      winRate: winRate.toFixed(2),
+      averageReturn: averageReturn.toFixed(2),
+      biggestLoss: stats.biggestLoss.toFixed(2),
+      biggestWin: stats.biggestWin.toFixed(2)
+    };
+
+    return {
+      user,
+      balance: user.balance,
+      holdings: holdingsResult,
+      transactions: transactionsDisplay,
+      statistics
+    };
+  } catch (err) {
+    console.error('Error in getPortfolioData:', err);
+    throw err;
+  }
+}
+
+
+// portfolio page route
+app.get('/portfolio', auth, async (req, res) => {
+  try {
+    const portfolioData = await getPortfolioData(req.session.user.user_id);
+    res.render('pages/portfolio', portfolioData);
+  } catch (err) {
+    console.error('Error retrieving portfolio data:', err);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
 
 // *****************************************************
 // <!-- Start Server-->
