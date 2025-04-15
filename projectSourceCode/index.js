@@ -71,6 +71,54 @@ db.connect()
   });
 
 
+// ----------------------------------   API ENDPOINT TO ALPHAVANTAGE FOR LOADMORE   ----------------------------------
+
+app.get('/api/news', async (req, res) => {
+  try {
+    const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
+    const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey=${apiKey}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      return res.status(500).json({ error: 'Failed to fetch news.' });
+    }
+    const newsData = await response.json();
+    let feed = Array.isArray(newsData.feed) ? newsData.feed : [];
+
+    const keyword = req.query.keyword ? req.query.keyword.trim() : '';
+    const offset = parseInt(req.query.offset, 10) || 0;
+
+    if (keyword) {
+      feed = feed.filter(item => {
+         const title = item.title ? item.title.toLowerCase() : "";
+         const summary = item.summary ? item.summary.toLowerCase() : "";
+         return title.includes(keyword.toLowerCase()) || summary.includes(keyword.toLowerCase());
+      });
+    }
+    
+    const totalItems = feed.length;
+    const paginatedNews = feed.slice(offset, offset + 10).map(item => {
+      if (item.time_published && typeof item.time_published === 'string' && item.time_published.length >= 15) {
+        const isoStr = item.time_published.slice(0, 4) + '-' +
+                       item.time_published.slice(4, 6) + '-' +
+                       item.time_published.slice(6, 8) + 'T' +
+                       item.time_published.slice(9, 11) + ':' +
+                       item.time_published.slice(11, 13) + ':' +
+                       item.time_published.slice(13, 15);
+        item.time_published = new Date(isoStr).toLocaleString();
+      }
+      return item;
+    });
+    
+    const nextOffset = offset + 10;
+    const hasMore = nextOffset < totalItems;
+    
+    res.json({ news: paginatedNews, nextOffset, hasMore });
+  } catch (error) {
+    console.error('API News Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // ----------------------------------   API PROXY TO PYTHON SERVER   ----------------------------------
 
 app.use('/api', createProxyMiddleware({
@@ -387,6 +435,62 @@ app.get('/portfolio', auth, async (req, res) => {
   }
 });
 
+// news page route using AlphaVantage API
+app.get('/news', async (req, res) => {
+  try {
+    const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
+    const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey=${apiKey}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error('Failed to fetch news from Alphavantage.');
+    }
+    const newsData = await response.json();
+    let feed = Array.isArray(newsData.feed) ? newsData.feed : [];
+    
+    // search bar
+    const keyword = req.query.keyword ? req.query.keyword.trim() : '';
+    
+    if (keyword) {
+      feed = feed.filter(item => {
+        const title = item.title ? item.title.toLowerCase() : "";
+        const summary = item.summary ? item.summary.toLowerCase() : "";
+        return title.includes(keyword.toLowerCase()) || summary.includes(keyword.toLowerCase());
+      });
+    }
+    
+    // reformat dates and get at most 10 items at a time
+    const totalItems = feed.length;
+    let paginatedNews = feed.slice(0, 10).map(item => {
+      if (item.time_published && typeof item.time_published === 'string' && item.time_published.length >= 15) {
+        const isoStr = item.time_published.slice(0, 4) + '-' +
+                       item.time_published.slice(4, 6) + '-' +
+                       item.time_published.slice(6, 8) + 'T' +
+                       item.time_published.slice(9, 11) + ':' +
+                       item.time_published.slice(11, 13) + ':' +
+                       item.time_published.slice(13, 15);
+        item.time_published = new Date(isoStr).toLocaleString();
+      }
+      return item;
+    });
+    // info for load more
+    const nextOffset = 10;
+    const hasMore = nextOffset < totalItems;
+    // record when news was pulled
+    const pullTimestamp = new Date().toLocaleString();
+    
+    res.render('pages/news', {
+      news: { feed: paginatedNews },
+      pulledAt: pullTimestamp,
+      keyword,
+      nextOffset,
+      hasMore
+    });
+    
+  } catch (error) {
+    console.error('Error fetching news:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
 
 // *****************************************************
 // <!-- Start Server-->

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Daily News</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+  <div class="container mt-4">
+    <h1>Daily News</h1>
+    <p class="text-muted">News pulled at: {{pulledAt}}</p>
+
+    <form method="GET" action="/news" class="mb-4" id="searchForm">
+      <div class="input-group">
+        <input type="text" name="keyword" 
+               class="form-control" 
+               placeholder="Filter news for keyword - search empty for recent news" 
+               value="{{keyword}}">
+        <button class="btn btn-primary" type="submit">Search</button>
+      </div>
+    </form>
+    
+    <div id="newsContainer">
+      {{#if news}}
+        {{#if news.feed}}
+          {{#each news.feed}}
+            <div class="card mb-3 news-item">
+              <div class="card-body">
+                <h5 class="card-title">{{this.title}}</h5>
+                <p class="card-text">{{this.summary}}</p>
+                <a href="{{this.url}}" target="_blank" class="btn btn-primary">Read More</a>
+              </div>
+              <div class="card-footer text-muted">
+                Published on: {{this.time_published}}
+              </div>
+            </div>
+          {{/each}}
+        {{else}}
+          <p>No news available at the moment.</p>
+        {{/if}}
+      {{else}}
+        <p>No news available at the moment.</p>
+      {{/if}}
+    </div>
+ 
+    {{#if hasMore}}
+      <div class="d-grid gap-2 my-4">
+        <button id="loadMore" class="btn btn-secondary" data-offset="{{nextOffset}}">Load More</button>
+      </div>
+    {{/if}}
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const loadMoreBtn = document.getElementById('loadMore');
+      const newsContainer = document.getElementById('newsContainer');
+      // use the current keyword from the search field; if empty, recent news are loaded.
+      const currentKeyword = "{{keyword}}";
+      
+      if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', async function() {
+          const offset = parseInt(loadMoreBtn.getAttribute('data-offset'), 10);
+          try {
+            const response = await fetch(`/api/news?keyword=${encodeURIComponent(currentKeyword)}&offset=${offset}`);
+            if (!response.ok) {
+              throw new Error('Failed to load more news.');
+            }
+            const data = await response.json();
+            // append each new news item to the container.
+            data.news.forEach(item => {
+              const card = document.createElement('div');
+              card.className = 'card mb-3 news-item';
+              card.innerHTML = `
+                <div class="card-body">
+                  <h5 class="card-title">${item.title}</h5>
+                  <p class="card-text">${item.summary}</p>
+                  <a href="${item.url}" target="_blank" class="btn btn-primary">Read More</a>
+                </div>
+                <div class="card-footer text-muted">
+                  Published on: ${item.time_published}
+                </div>
+              `;
+              newsContainer.insertAdjacentElement('beforeend', card);
+            });
+            if (data.hasMore) {
+              loadMoreBtn.setAttribute('data-offset', data.nextOffset);
+            } else {
+              // if no more items available -> hide the load more button.
+              loadMoreBtn.style.display = 'none';
+            }
+          } catch (err) {
+            console.error(err);
+          }
+        });
+      }
+    });
+  </script>
+</body>
+</html>
