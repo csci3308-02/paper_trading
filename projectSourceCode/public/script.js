@@ -213,27 +213,15 @@ function isMarketClosed() {
 }
 
 function getTicker() {
-  // First try to get the symbol from URL params
   const urlParams = new URLSearchParams(window.location.search);
-  const urlSymbol = urlParams.get('symbol');
-
-  // If no URL symbol, fall back to input field
-  const inputSymbol = document.getElementById("tickerInput").value.trim().toUpperCase();
-  
-  const finalSymbol = urlSymbol || inputSymbol;
-  
-  if (!finalSymbol) {
-    alert("Please enter a valid ticker symbol.");
+  const symbol = urlParams.get('symbol');
+  if (!symbol) {
+    alert("No ticker provided in URL.");
     return null;
   }
-
-  // Update the input field if it came from URL
-  if (urlSymbol && !inputSymbol) {
-    document.getElementById("tickerInput").value = urlSymbol;
-  }
-
-  return finalSymbol;
+  return symbol.toUpperCase();
 }
+
 
 function getValue(id) {
   return document.getElementById(id).value;

@@ -1,13 +1,12 @@
 <h1>Stock Chart Simulator</h1>
 
 <div class="controls">
+  <!--
 <input 
   type="text" 
   id="tickerInput" 
   placeholder="Enter Ticker (e.g., AAPL)" 
-  value="{{symbol}}" <!-- Pre-fill if symbol exists -->
-
-  <!--
+  value="{{symbol}}" 
 
   <label for="periodSelect">Period:</label>
   <select id="periodSelect">
@@ -71,14 +70,15 @@
 <script src="/script.js" defer></script>
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    const tickerInput = document.getElementById('tickerInput');
     const urlParams = new URLSearchParams(window.location.search);
     const symbol = urlParams.get('symbol');
 
     if (symbol) {
-      tickerInput.value = symbol;
-      // Optional: Auto-trigger chart load
+      // Load the chart directly using the URL param
       setTimeout(() => simulateChart(), 300); 
+    } else {
+      console.warn("No ticker symbol provided in the URL.");
     }
   });
 </script>
+
