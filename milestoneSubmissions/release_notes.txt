@@ -1,7 +1,17 @@
 4-16-2025 News API Integrated and visible portfolio page
 Portfolio page features basic information and some statistical information to help the user see their progress in making money
 News API shows recent daily news with an ability to search for specific keywords
-5-9-2025 docker images work and create 3 images for api, web, and db.
+
+4-14-2025 New frontend features
+Users can now search for stocks directly from any page
+There is now a navigation bar for users to get to the chart, home or account pages
+
+4-9-2025 Docker images work and create 3 images for api, web, and db.
 There are 3 pages that work, home, discover, chart, and logout.
-users can register with username and password, and login.
-users can login.
+Implemented partials for header, nav bar, and footer. 
+
+4-7-2025 Login Functionality
+Users are able to login, register, and logout of accounts.
+
+4-6-2025 Used yfinance API for up-to-date stock information
+Users can view a stock chart with different views and have the ability to zoom 
