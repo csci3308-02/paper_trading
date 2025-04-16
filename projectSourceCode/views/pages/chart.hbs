@@ -5,7 +5,10 @@
   type="text" 
   id="tickerInput" 
   placeholder="Enter Ticker (e.g., AAPL)" 
-  value="{{symbol}}" <!-- Pre-fill if symbol exists -->/>
+  value="{{symbol}}" <!-- Pre-fill if symbol exists -->
+
+  <!--
+
   <label for="periodSelect">Period:</label>
   <select id="periodSelect">
     <option value="1d">1 Day</option>
@@ -14,6 +17,7 @@
     <option value="3mo">3 Months</option>
     <option value="6mo">6 Months</option>
     <option value="1y">1 Year</option>
+    <option value="5y">5 Years</option>
   </select>
 
   <label for="intervalSelect">Interval:</label>
@@ -26,7 +30,9 @@
     <option value="1d">1 Day</option>
   </select>
 
-  <button onclick="simulateChart()">Simulate Chart</button>
+  -->
+
+  <!-- <button onclick="simulateChart()">Simulate Chart</button> -->
   <button onclick="startLiveChart()">Start Live Chart</button>
   <button onclick="chart.resetZoom()">Reset Zoom</button>
 </div>
@@ -47,6 +53,15 @@
   >
   </div>
 </div>
+
+<div id="periodButtons" style="margin: 10px 0;">
+    <button onclick="simulateChart('1d')">1D</button>
+    <button onclick="simulateChart('5d')">5D</button>
+    <button onclick="simulateChart('1mo')">1M</button>
+    <button onclick="simulateChart('3mo')">3M</button>
+    <button onclick="simulateChart('6mo')">6M</button>
+    <button onclick="simulateChart('1y')">1Y</button>
+  </div>
 
 <!-- Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
