@@ -44,10 +44,6 @@ function simulateChart(period) {
   const ticker = getTicker();
   if (!ticker) return;
 
-  //Update the URL to reflect the searched ticker
-  const newUrl = `${window.location.pathname}?symbol=${ticker}`;
-  window.history.pushState({ path: newUrl }, '', newUrl);
-
   //const period = getValue("periodSelect");
   //const intervalVal = getValue("intervalSelect");
 
