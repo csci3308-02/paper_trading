@@ -58,6 +58,49 @@ const dbConfig = {
 };
 const db = pgp(dbConfig);
 
+// Configure API proxy with increased timeouts and logging
+const apiProxy = createProxyMiddleware({
+  target: 'http://api:8000',
+  changeOrigin: true,
+  timeout: 60000, // 60 second timeout
+  proxyTimeout: 60000, // 60 second proxy timeout
+  logLevel: 'debug', // Add debug logging
+  onProxyReq: (proxyReq, req, res) => {
+    console.log(`[Proxy Request] ${req.method} ${req.originalUrl}`);
+    // Handle POST request body rewriting
+    if (req.body && req.method === 'POST') {
+      const bodyData = JSON.stringify(req.body);
+      // Update headers
+      proxyReq.setHeader('Content-Type', 'application/json');
+      proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+      // Write body data
+      proxyReq.write(bodyData);
+      console.log('[Proxy Request Body]', bodyData);
+    }
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    console.log(`[Proxy Response] ${proxyRes.statusCode} ${req.method} ${req.originalUrl}`);
+    // Log response body for debugging
+    let responseBody = '';
+    proxyRes.on('data', function(chunk) {
+      responseBody += chunk;
+    });
+    proxyRes.on('end', function() {
+      console.log('[Proxy Response Body]', responseBody);
+    });
+  },
+  onError: (err, req, res) => {
+    console.error('[Proxy Error]:', err);
+    res.status(500).json({
+      error: 'API Service Temporarily Unavailable',
+      details: err.message,
+      path: req.originalUrl
+    });
+  }
+});
+
+// Apply proxy middleware to all /api routes
+app.use('/api', apiProxy);
 
 // db test
 db.connect()
@@ -207,19 +250,6 @@ app.post('/register', async (req, res) => {
     res.redirect('/register');
   }
 });
-
-app.use('/api/search', createProxyMiddleware({
-  target: 'http://api:8000',
-  changeOrigin: true,
-  pathRewrite: {
-    '^/api/search': '/api/search' // Ensure path is preserved
-  },
-  onProxyReq: (proxyReq, req, res) => {
-    console.log(`Proxying request: ${req.originalUrl}`) // Debug logging
-  }
-}));
-
-
 
 // API route for Order History Page
 app.get('/orderhistory', async (req, res) => {
@@ -496,6 +526,14 @@ app.get('/news', async (req, res) => {
     console.error('Error fetching news:', error);
     res.status(500).send('Internal Server Error');
   }
+});
+
+app.get('/trade', auth, (req, res) => {
+  const symbol = req.query.symbol || '';
+  res.render('pages/trade', { 
+    symbol,
+    user: req.session.user
+  });
 });
 
 // *****************************************************
