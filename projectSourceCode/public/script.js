@@ -33,19 +33,24 @@ function formatMarketCap(num) {
   return num.toString();
 }
 
-function simulateChart() {
+function simulateChart(period) {
+  if (period == undefined){
+    period = '1d';
+  }
+
   clearInterval(interval);
   historicalData = [];
 
   const ticker = getTicker();
   if (!ticker) return;
 
-  const period = getValue("periodSelect");
-  const intervalVal = getValue("intervalSelect");
+  //const period = getValue("periodSelect");
+  //const intervalVal = getValue("intervalSelect");
 
   setText("currentPrice", `Fetching history for ${ticker}...`);
-
-  fetch(`/api/history?ticker=${ticker}&period=${period}&interval=${intervalVal}`)
+  
+  //fetch(`/api/history?ticker=${ticker}&period=${period}&interval=${intervalVal}`)
+  fetch(`/api/history?ticker=${ticker}&period=${period}`)
     .then(res => res.json())
     .then(data => {
       if (!data || data.length === 0) throw new Error("No data returned");
@@ -72,7 +77,71 @@ function simulateChart() {
     })
     .catch(err => setText("currentPrice", `Error: ${err.message}`));
 }
+/*function startLiveChart() { this version of startLiveChart tries to pull the whole of todays data as well so the live chart is not so small and narrow
+  if (isMarketClosed()) {
+    alert("Market is closed. Please try again during market hours.");
+    return;
+  }
 
+  clearInterval(interval);
+  historicalData = [];
+
+  const ticker = getTicker();
+  if (!ticker) return;
+
+  setText("currentPrice", `Starting live updates for ${ticker}...`);
+  setText("chartDate", "Live Mode");
+
+  const ctx = document.getElementById("stockChart").getContext("2d");
+  if (chart) chart.destroy();
+
+
+  //get todays data
+  fetch(`/api/history?ticker=${ticker}&period=1d&interval=1m`)
+    .then(res => res.json())
+    .then(data => {
+      if (!data || data.length === 0) throw new Error("No data returned");
+
+      const labels = data.map(p => p.time);
+      const prices = data.map(p => p.price);
+      const [min, max] = getMinMax(prices);
+      const buffer = (max - min) * 0.03;
+
+      chart = new Chart(ctx, getChartConfig(ticker, labels, prices, min - buffer, max + buffer));
+      historicalData = prices;
+
+      const latest = data.at(-1);
+      setText("currentPrice", `${ticker}: $${latest.price.toFixed(2)} @ ${formatTime(latest.time)}`);
+    })
+    .catch(err => {
+      setText("currentPrice", `Error: ${err.message}`);
+    });
+
+  // Start live updates every second
+  interval = setInterval(() => {
+    fetch(`/api/stock?ticker=${ticker}&live=true`)
+      .then(res => res.json())
+      .then(data => {
+        const stock = data[0];
+        if (!stock || stock.price == null) return;
+
+        const now = new Date();
+        const price = parseFloat(stock.price);
+
+        chart.data.labels.push(now.toISOString());
+        chart.data.datasets[0].data.push(price);
+
+        const [min, max] = getMinMax(chart.data.datasets[0].data);
+        const buffer = (max - min) * 0.03;
+        chart.options.scales.y.min = min - buffer;
+        chart.options.scales.y.max = max + buffer;
+
+        chart.update();
+
+        setText("currentPrice", `${stock.name} (${stock.ticker}): $${price.toFixed(2)} @ ${formatTime(now)}`);
+      });
+  }, 1000);
+}*/
 function startLiveChart() {
   if (isMarketClosed()) {
     alert("Market is closed. Please try again during market hours.");
@@ -196,10 +265,10 @@ function getChartConfig(ticker, labels, data, yMin, yMax) {
       datasets: [{
         label: ticker,
         data,
-        borderWidth: 2,
+        borderWidth: 1.5,
         fill: false,
         tension: 0.2,
-        pointRadius: 2,
+        pointRadius: 0.5,
         pointHoverRadius: 4
       }]
     },
