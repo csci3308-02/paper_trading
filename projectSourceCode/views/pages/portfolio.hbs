@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{user.username}}'s Portfolio</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <h1>{{user.username}}'s Portfolio</h1>
+  </header>
+
+  <section id="user-info">
+    <h2>Account Information</h2>
+    <p><strong>Email:</strong> {{user.email}}</p>
+    <p><strong>Balance:</strong> ${{balance}}</p>
+    <p><strong>Profit:</strong> ${{profit}}</p>
+    <p><strong>Account Created:</strong> {{user.created_at}}</p>
+  </section>
+
+  <section id="holdings">
+    <h2>Stocks Held</h2>
+    {{#if holdings.length}}
+      <table>
+        <thead>
+          <tr>
+            <th>Stock Symbol</th>
+            <th>Company Name</th>
+            <th>Quantity</th>
+            <th>Last Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each holdings}}
+          <tr>
+            <td>{{this.symbol}}</td>
+            <td>{{this.company_name}}</td>
+            <td>{{this.quantity}}</td>
+            <td>${{this.last_price}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{else}}
+      <p>No stocks held at the moment.</p>
+    {{/if}}
+  </section>
+
+  <section id="transactions">
+    <h2>Transaction History</h2>
+    {{#if transactions.length}}
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Stock</th>
+            <th>Quantity</th>
+            <th>Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each transactions}}
+          <tr>
+            <td>{{this.transaction_date}}</td>
+            <td>{{this.transaction_type}}</td>
+            <td>{{this.symbol}}</td>
+            <td>{{this.quantity}}</td>
+            <td>${{this.price}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{else}}
+      <p>No transactions to display.</p>
+    {{/if}}
+  </section>
+
+  <section id="statistics">
+    <h2>Performance Statistics</h2>
+    <ul>
+      <li><strong>Total Return:</strong> ${{statistics.totalReturn}}</li>
+      <li><strong>Win Rate:</strong> {{statistics.winRate}}%</li>
+      <li><strong>Average Return per Trade:</strong> ${{statistics.averageReturn}}</li>
+      <li><strong>Biggest Loss:</strong> ${{statistics.biggestLoss}}</li>
+      <li><strong>Biggest Win:</strong> ${{statistics.biggestWin}}</li>
+    </ul>
+  </section>
+</body>
+</html>
