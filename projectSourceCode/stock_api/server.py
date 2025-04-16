@@ -111,19 +111,34 @@ def handle_stock_request():
 @app.route('/api/history')
 def handle_history_request():
     ticker = request.args.get('ticker', '').upper()
-    interval = request.args.get('interval', '5m')
     period = request.args.get('period', '1d')
+
+    interval_mapping = {
+        '1d': '1m',
+        '5d': '5m',
+        '1mo': '15m',
+        '3mo': '1h',
+        '6mo': '1h',
+        '1y': '1d',
+        '5y': '1d',
+    }
+    interval = interval_mapping.get(period, '1d')  # fallback to 1d
 
     try:
         stock = yf.Ticker(ticker)
         history = stock.history(period=period, interval=interval)
+
         data = [
-            {"time": str(index), "price": float(row["Close"])}
+            {
+                "time": str(index), 
+                "price": float(row["Close"])
+            }
             for index, row in history.iterrows()
         ]
         return jsonify(data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 @app.route('/api/search')
 def handle_search_request():
