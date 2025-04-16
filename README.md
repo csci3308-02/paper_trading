@@ -1,3 +1,8 @@
+### how to run ###
+navigate to projectSourceCode, then
+docker-compose up --build
+
+
 # Stonks - StockSandbox
 
 ## Brief Application Description

@@ -6,35 +6,57 @@ services:
       - '5432'
     volumes:
       - group-project:/var/lib/postgresql/data
-      - ./src/init_data:/docker-entrypoint-initdb.d
+      - ./init_data/init_user.sql:/docker-entrypoint-initdb.d/00-init_user.sql
+      - ./init_data/01-init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./init_data/pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - ./init_data/postgresql.conf:/etc/postgresql/postgresql.conf
+    command: >
+      postgres 
+      -c config_file=/etc/postgresql/postgresql.conf 
+      -c hba_file=/etc/postgresql/pg_hba.conf
+
+  api:
+    build: 
+      context: .
+      dockerfile: ./stock_api/Dockerfile
+    working_dir: /app
+    depends_on:
+      - db
+    ports:
+      - '8000:8000'
+    volumes:
+      - .:/app
+    environment:
+      - FLASK_ENV=development
+      - FLASK_APP=stock_api/server.py
+      - PGHOST=db
+      - PGUSER=${POSTGRES_USER}
+      - PGPASSWORD=${POSTGRES_PASSWORD}
+      - PGDATABASE=${POSTGRES_DB}
+      - PGPORT=5432
+    command: python3 stock_api/server.py
 
   web:
-    image: node:lts
-    user: 'node'
-    working_dir: /app
+    build: 
+      context: .
+      dockerfile: Dockerfile.web
     env_file: .env
     environment:
       - NODE_ENV=development
+      - PGHOST=db
+      - PGUSER=${POSTGRES_USER}
+      - PGPASSWORD=${POSTGRES_PASSWORD}
+      - PGDATABASE=${POSTGRES_DB}
+      - PGPORT=5432
     depends_on:
       - db
-      - python
+      - api
     ports:
       - '3000:3000'
     volumes:
-      - .:/app
-    command: 'npm start'
-
-  python:
-    build:
-      context: .
-      dockerfile: /stock_api/Dockerfile
-    working_dir: /app
-    env_file: .env
-    volumes:
-      - .:/app
-    ports:
-      - '5000:5000'
-    command: python3 stock_api/server.py
+      - .:/repository
+      - /repository/node_modules
+    command: bash -c "npm install && npm start"
 
 volumes:
   group-project:

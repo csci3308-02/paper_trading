@@ -1,0 +1,39 @@
+{{! Order History Page }}
+<div class="container">
+    <h2 class="text-center">Order History</h2>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Stock</th>
+                <th>Symbol</th>
+                <th>Type</th>
+                <th>Price</th>
+                <th>Quantity</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#each orders}}
+            <tr class="{{#if (eq this.type 'buy')}}text-success{{else}}text-danger{{/if}}">
+                <td>{{this.stock_name}}</td>
+                <td>{{this.symbol}}</td>
+                <td>{{this.type}}</td>
+                <td>${{this.price}}</td>
+                <td>{{this.quantity}}</td>
+                <td>{{this.created_at}}</td>
+            </tr>
+            {{/each}}
+        </tbody>
+    </table>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const rows = document.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+        row.addEventListener('click', () => {
+            alert(`Stock: ${row.cells[0].textContent}, Symbol: ${row.cells[1].textContent}`);
+        });
+    });
+});
+</script>

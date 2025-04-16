@@ -1,7 +1,14 @@
 <h1>Stock Chart Simulator</h1>
 
 <div class="controls">
-  <input type="text" id="tickerInput" placeholder="Enter Ticker (e.g., AAPL)" />
+<input 
+  type="text" 
+  id="tickerInput" 
+  placeholder="Enter Ticker (e.g., AAPL)" 
+  value="{{symbol}}" <!-- Pre-fill if symbol exists -->
+
+  <!--
+
   <label for="periodSelect">Period:</label>
   <select id="periodSelect">
     <option value="1d">1 Day</option>
@@ -10,6 +17,7 @@
     <option value="3mo">3 Months</option>
     <option value="6mo">6 Months</option>
     <option value="1y">1 Year</option>
+    <option value="5y">5 Years</option>
   </select>
 
   <label for="intervalSelect">Interval:</label>
@@ -22,21 +30,55 @@
     <option value="1d">1 Day</option>
   </select>
 
-  <button onclick="simulateChart()">Simulate Chart</button>
+  -->
+
+  <!-- <button onclick="simulateChart()">Simulate Chart</button> -->
   <button onclick="startLiveChart()">Start Live Chart</button>
   <button onclick="chart.resetZoom()">Reset Zoom</button>
-
 </div>
 
 <div id="currentPrice"></div>
 <div id="chartDate" style="margin: 10px 0; font-style: italic;"></div>
 
-<div id="chartContainer">
-  <canvas id="stockChart" width="1000" height="500"></canvas>
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+  <!-- Chart -->
+  <div style="flex: 3; min-width: 600px;" id="chartContainer">
+    <canvas id="stockChart" width="1000" height="500"></canvas>
+  </div>
+
+  <!-- Info -->
+  <div
+    id="stockInfoBox"
+    style="flex: 1; min-width: 250px; background: #f9f9f9; padding: 15px; border-left: 1px solid #ccc; border-radius: 8px;"
+  >
+  </div>
 </div>
 
+<div id="periodButtons" style="margin: 10px 0;">
+    <button onclick="simulateChart('1d')">1D</button>
+    <button onclick="simulateChart('5d')">5D</button>
+    <button onclick="simulateChart('1mo')">1M</button>
+    <button onclick="simulateChart('3mo')">3M</button>
+    <button onclick="simulateChart('6mo')">6M</button>
+    <button onclick="simulateChart('1y')">1Y</button>
+  </div>
+
+<!-- Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1"></script>
 <script src="/script.js" defer></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const tickerInput = document.getElementById('tickerInput');
+    const urlParams = new URLSearchParams(window.location.search);
+    const symbol = urlParams.get('symbol');
+
+    if (symbol) {
+      tickerInput.value = symbol;
+      // Optional: Auto-trigger chart load
+      setTimeout(() => simulateChart(), 300); 
+    }
+  });
+</script>

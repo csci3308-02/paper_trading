@@ -1,21 +1,56 @@
 let chart;
 let interval;
 let historicalData = [];
-let LIVEINTERVAL = 1000; // 1 second
 
-function simulateChart() {
+function displayStockInfo(data) {
+  const infoBox = document.getElementById("stockInfoBox");
+  if (!data) return infoBox.innerHTML = '';
+
+  infoBox.innerHTML = `
+    <h3>${data.name} (${data.ticker})</h3>
+    <ul>
+      <li><strong>Current Price:</strong> $${data.price?.toFixed(2) || 'N/A'}</li>
+      <li><strong>Previous Close:</strong> $${data.previousClose?.toFixed(2) || 'N/A'}</li>
+      <li><strong>Open:</strong> $${data.open?.toFixed(2) || 'N/A'}</li>
+      <li><strong>High today:</strong> $${data.dayHigh?.toFixed(2) || 'N/A'}</li>
+      <li><strong>Low today:</strong> $${data.dayLow?.toFixed(2) || 'N/A'}</li>
+      <li><strong>52 Week High:</strong> $${data.yearHigh?.toFixed(2) || 'N/A'}</li>
+      <li><strong>52 Week Low:</strong> $${data.yearLow?.toFixed(2) || 'N/A'}</li>
+      <li><strong>Day Range:</strong> $${(data.dayHigh - data.dayLow).toFixed(2) || 'N/A'}</li>
+      <li><strong>52 Week Range:</strong> $${(data.yearHigh - data.yearLow).toFixed(2) || 'N/A'}</li>
+      <li><strong>Volume:</strong> ${data.volume?.toLocaleString() || 'N/A'}</li>
+      <li><strong>Market Cap:</strong> $${formatMarketCap(data.marketCap) || 'N/A'}</li>
+    </ul>
+  `;
+}
+
+function formatMarketCap(num) {
+  if (!num || isNaN(num)) return "N/A";
+  if (num >= 1e12) return (num / 1e12).toFixed(2) + "T";
+  if (num >= 1e9) return (num / 1e9).toFixed(2) + "B";
+  if (num >= 1e6) return (num / 1e6).toFixed(2) + "M";
+  if (num >= 1e3) return (num / 1e3).toFixed(2) + "K";
+  return num.toString();
+}
+
+function simulateChart(period) {
+  if (period == undefined){
+    period = '1d';
+  }
+
   clearInterval(interval);
   historicalData = [];
 
   const ticker = getTicker();
   if (!ticker) return;
 
-  const period = getValue("periodSelect");
-  const intervalVal = getValue("intervalSelect");
+  //const period = getValue("periodSelect");
+  //const intervalVal = getValue("intervalSelect");
 
   setText("currentPrice", `Fetching history for ${ticker}...`);
-
-  fetch(`/api/history?ticker=${ticker}&period=${period}&interval=${intervalVal}`)
+  
+  //fetch(`/api/history?ticker=${ticker}&period=${period}&interval=${intervalVal}`)
+  fetch(`/api/history?ticker=${ticker}&period=${period}`)
     .then(res => res.json())
     .then(data => {
       if (!data || data.length === 0) throw new Error("No data returned");
@@ -34,11 +69,20 @@ function simulateChart() {
 
       const latest = data.at(-1);
       setText("currentPrice", `${ticker}: $${latest.price.toFixed(2)} @ ${formatTime(latest.time)}`);
+
+      fetch(`/api/stock?ticker=${ticker}&live=true`)
+        .then(res => res.json())
+        .then(data => displayStockInfo(data[0]))
+        .catch(err => console.error("Info fetch failed", err));
     })
     .catch(err => setText("currentPrice", `Error: ${err.message}`));
 }
+/*function startLiveChart() { this version of startLiveChart tries to pull the whole of todays data as well so the live chart is not so small and narrow
+  if (isMarketClosed()) {
+    alert("Market is closed. Please try again during market hours.");
+    return;
+  }
 
-function startLiveChart() {
   clearInterval(interval);
   historicalData = [];
 
@@ -48,9 +92,70 @@ function startLiveChart() {
   setText("currentPrice", `Starting live updates for ${ticker}...`);
   setText("chartDate", "Live Mode");
 
+  const ctx = document.getElementById("stockChart").getContext("2d");
+  if (chart) chart.destroy();
+
+
+  //get todays data
+  fetch(`/api/history?ticker=${ticker}&period=1d&interval=1m`)
+    .then(res => res.json())
+    .then(data => {
+      if (!data || data.length === 0) throw new Error("No data returned");
+
+      const labels = data.map(p => p.time);
+      const prices = data.map(p => p.price);
+      const [min, max] = getMinMax(prices);
+      const buffer = (max - min) * 0.03;
+
+      chart = new Chart(ctx, getChartConfig(ticker, labels, prices, min - buffer, max + buffer));
+      historicalData = prices;
+
+      const latest = data.at(-1);
+      setText("currentPrice", `${ticker}: $${latest.price.toFixed(2)} @ ${formatTime(latest.time)}`);
+    })
+    .catch(err => {
+      setText("currentPrice", `Error: ${err.message}`);
+    });
+
+  // Start live updates every second
+  interval = setInterval(() => {
+    fetch(`/api/stock?ticker=${ticker}&live=true`)
+      .then(res => res.json())
+      .then(data => {
+        const stock = data[0];
+        if (!stock || stock.price == null) return;
+
+        const now = new Date();
+        const price = parseFloat(stock.price);
+
+        chart.data.labels.push(now.toISOString());
+        chart.data.datasets[0].data.push(price);
+
+        const [min, max] = getMinMax(chart.data.datasets[0].data);
+        const buffer = (max - min) * 0.03;
+        chart.options.scales.y.min = min - buffer;
+        chart.options.scales.y.max = max + buffer;
+
+        chart.update();
+
+        setText("currentPrice", `${stock.name} (${stock.ticker}): $${price.toFixed(2)} @ ${formatTime(now)}`);
+      });
+  }, 1000);
+}*/
+function startLiveChart() {
   if (isMarketClosed()) {
-    setText("chartDate", "Market is closed. Prices may not update.");
-  }  
+    alert("Market is closed. Please try again during market hours.");
+    return;
+  }
+
+  clearInterval(interval);
+  historicalData = [];
+
+  const ticker = getTicker();
+  if (!ticker) return;
+
+  setText("currentPrice", `Starting live updates for ${ticker}...`);
+  setText("chartDate", "Live Mode");
 
   const ctx = document.getElementById("stockChart").getContext("2d");
   if (chart) chart.destroy();
@@ -58,9 +163,10 @@ function startLiveChart() {
   chart = new Chart(ctx, getChartConfig(ticker, [], [], null, null));
 
   interval = setInterval(() => {
-    fetch(`/api/stock?ticker=${ticker}`)
-  .then(res => res.json())
-  .then(data => {
+    fetch(`/api/stock?ticker=${ticker}&live=true`)
+    .then(res => res.json())
+    .then(data => {
+    displayStockInfo(data[0]);
     const stock = data[0];
     if (!stock || stock.price == null) return;
 
@@ -85,27 +191,48 @@ function startLiveChart() {
     setText("currentPrice", `${stock.name} (${stock.ticker}): $${price.toFixed(2)} @ ${formatTime(now)}`);
   });
 
-  }, LIVEINTERVAL);
+  }, 1000);
 }
 
 function isMarketClosed() {
   const now = new Date();
-  const day = now.getDay();
-  const hour = now.getHours();
 
-  // Market is open mon-fri, 930am to 4pm est
+  // Convert to EST
+  const now_est = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+
+  const day = now_est.getDay();
+  const hour = now_est.getHours();
+  const minute = now_est.getMinutes();
+
+  //market is open mon-fri, 930am to 4pm *EST*
   const isWeekend = day === 0 || day === 6;
-  const isBeforeOpen = hour < 9;
-  const isAfterClose = hour >= 16;
+  const beforeOpen = hour < 9 || (hour === 9 && minute < 30);
+  const afterClose = hour > 16 || (hour === 16 && minute > 0);
 
-  return isWeekend || isBeforeOpen || isAfterClose;
+  return isWeekend || beforeOpen || afterClose;
 }
 
-
 function getTicker() {
-  const val = getValue("tickerInput").toUpperCase();
-  if (!val) alert("Enter a valid ticker.");
-  return val;
+  // First try to get the symbol from URL params
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlSymbol = urlParams.get('symbol');
+
+  // If no URL symbol, fall back to input field
+  const inputSymbol = document.getElementById("tickerInput").value.trim().toUpperCase();
+  
+  const finalSymbol = urlSymbol || inputSymbol;
+  
+  if (!finalSymbol) {
+    alert("Please enter a valid ticker symbol.");
+    return null;
+  }
+
+  // Update the input field if it came from URL
+  if (urlSymbol && !inputSymbol) {
+    document.getElementById("tickerInput").value = urlSymbol;
+  }
+
+  return finalSymbol;
 }
 
 function getValue(id) {
@@ -138,10 +265,10 @@ function getChartConfig(ticker, labels, data, yMin, yMax) {
       datasets: [{
         label: ticker,
         data,
-        borderWidth: 2,
+        borderWidth: 1.5,
         fill: false,
         tension: 0.2,
-        pointRadius: 2,
+        pointRadius: 0.5,
         pointHoverRadius: 4
       }]
     },
@@ -159,17 +286,14 @@ function getChartConfig(ticker, labels, data, yMin, yMax) {
           title: { display: true, text: "Time" },
           ticks: {
             maxTicksLimit: 20,
-            callback: function (val, index, ticks) {
-              const rawLabel = labels[index];
-              const date = new Date(rawLabel);
-          
-              return date.toLocaleTimeString([], {
+            callback: (value) => {
+              const fullTime = value;
+              return new Date(fullTime).toLocaleTimeString([], {
                 hour: '2-digit',
                 minute: '2-digit'
               });
             }
           }
-          
         },
         y: {
           min: yMin,

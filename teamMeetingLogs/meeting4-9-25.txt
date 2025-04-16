@@ -1,0 +1,4 @@
+- make styling consistent
+- make buy and sell functionality 
+- show portfolio
+- release notes and logs with changes
