@@ -44,12 +44,8 @@ function simulateChart(period) {
   const ticker = getTicker();
   if (!ticker) return;
 
-  //const period = getValue("periodSelect");
-  //const intervalVal = getValue("intervalSelect");
-
   setText("currentPrice", `Fetching history for ${ticker}...`);
   
-  //fetch(`/api/history?ticker=${ticker}&period=${period}&interval=${intervalVal}`)
   fetch(`/api/history?ticker=${ticker}&period=${period}`)
     .then(res => res.json())
     .then(data => {
@@ -65,10 +61,11 @@ function simulateChart(period) {
       const fullDate = new Date(data[0].time).toLocaleDateString();
       setText("chartDate", `Data for: ${fullDate}`);
 
-      createChart(ticker, labels, prices, min - buffer, max + buffer);
-
       const latest = data.at(-1);
       setText("currentPrice", `${ticker}: $${latest.price.toFixed(2)} @ ${formatTime(latest.time)}`);
+
+      const color = latest.price > prices[0] ? 'rgba(10, 167, 41, 0.8)' : 'rgba(255, 32, 0, 0.77)'; // check if curent price > first price on chart
+      createChart(ticker, labels, prices, min - buffer, max + buffer, color);
 
       fetch(`/api/stock?ticker=${ticker}&live=true`)
         .then(res => res.json())
@@ -77,7 +74,9 @@ function simulateChart(period) {
     })
     .catch(err => setText("currentPrice", `Error: ${err.message}`));
 }
-/*function startLiveChart() { this version of startLiveChart tries to pull the whole of todays data as well so the live chart is not so small and narrow
+
+
+function startLiveChart() {
   if (isMarketClosed()) {
     alert("Market is closed. Please try again during market hours.");
     return;
@@ -95,23 +94,29 @@ function simulateChart(period) {
   const ctx = document.getElementById("stockChart").getContext("2d");
   if (chart) chart.destroy();
 
-
-  //get todays data
+  // get 1d of data and filter by time
   fetch(`/api/history?ticker=${ticker}&period=1d&interval=1m`)
     .then(res => res.json())
     .then(data => {
       if (!data || data.length === 0) throw new Error("No data returned");
 
-      const labels = data.map(p => p.time);
-      const prices = data.map(p => p.price);
+      const timeAgo = Date.now() - 60 * 1 * 1000; // set to 1 minute ago, wont change the chart much. set to a higher value to show data from earlier, but it scales weirdly so i suggest not to
+
+      const filtered = data.filter(p => {
+        const t = new Date(p.time).getTime();
+        return t >= timeAgo;
+      });
+
+      const labels = filtered.map(p => p.time);
+      const prices = filtered.map(p => p.price);
       const [min, max] = getMinMax(prices);
       const buffer = (max - min) * 0.03;
 
-      chart = new Chart(ctx, getChartConfig(ticker, labels, prices, min - buffer, max + buffer));
-      historicalData = prices;
-
-      const latest = data.at(-1);
+      const latest = filtered.at(-1);
       setText("currentPrice", `${ticker}: $${latest.price.toFixed(2)} @ ${formatTime(latest.time)}`);
+      const color = latest.price > prices[0] ? 'rgba(10, 167, 41, 0.8)' : 'rgba(255, 32, 0, 0.77)'; // check if curent price > first price on chart
+      createChart(ticker, labels, prices, min - buffer, max + buffer, color);
+      historicalData = prices;
     })
     .catch(err => {
       setText("currentPrice", `Error: ${err.message}`);
@@ -131,6 +136,10 @@ function simulateChart(period) {
         chart.data.labels.push(now.toISOString());
         chart.data.datasets[0].data.push(price);
 
+        chart.data.datasets[0].borderColor = price > stock.open
+          ? 'rgba(10, 167, 41, 0.8)'
+          : 'rgba(255, 32, 0, 0.77)';
+
         const [min, max] = getMinMax(chart.data.datasets[0].data);
         const buffer = (max - min) * 0.03;
         chart.options.scales.y.min = min - buffer;
@@ -140,57 +149,6 @@ function simulateChart(period) {
 
         setText("currentPrice", `${stock.name} (${stock.ticker}): $${price.toFixed(2)} @ ${formatTime(now)}`);
       });
-  }, 1000);
-}*/
-function startLiveChart() {
-  if (isMarketClosed()) {
-    alert("Market is closed. Please try again during market hours.");
-    return;
-  }
-
-  clearInterval(interval);
-  historicalData = [];
-
-  const ticker = getTicker();
-  if (!ticker) return;
-
-  setText("currentPrice", `Starting live updates for ${ticker}...`);
-  setText("chartDate", "Live Mode");
-
-  const ctx = document.getElementById("stockChart").getContext("2d");
-  if (chart) chart.destroy();
-
-  chart = new Chart(ctx, getChartConfig(ticker, [], [], null, null));
-
-  interval = setInterval(() => {
-    fetch(`/api/stock?ticker=${ticker}&live=true`)
-    .then(res => res.json())
-    .then(data => {
-    displayStockInfo(data[0]);
-    const stock = data[0];
-    if (!stock || stock.price == null) return;
-
-    const now = new Date();
-    const price = parseFloat(stock.price);
-
-    if (!chart) {
-      const ctx = document.getElementById("stockChart").getContext("2d");
-      chart = new Chart(ctx, getChartConfig(ticker, [now.toISOString()], [price], price - 1, price + 1));
-    } else {
-      chart.data.labels.push(now.toISOString());
-      chart.data.datasets[0].data.push(price);
-
-      const [min, max] = getMinMax(chart.data.datasets[0].data);
-      const buffer = (max - min) * 0.03;
-      chart.options.scales.y.min = min - buffer;
-      chart.options.scales.y.max = max + buffer;
-
-      chart.update();
-    }
-
-    setText("currentPrice", `${stock.name} (${stock.ticker}): $${price.toFixed(2)} @ ${formatTime(now)}`);
-  });
-
   }, 1000);
 }
 
@@ -239,13 +197,13 @@ function getMinMax(data) {
   return [Math.min(...data), Math.max(...data)];
 }
 
-function createChart(ticker, labels, data, yMin, yMax) {
+function createChart(ticker, labels, data, yMin, yMax, color = 'gray') {
   const ctx = document.getElementById("stockChart").getContext("2d");
   if (chart) chart.destroy();
-  chart = new Chart(ctx, getChartConfig(ticker, labels, data, yMin, yMax));
+  chart = new Chart(ctx, getChartConfig(ticker, labels, data, yMin, yMax, color));
 }
 
-function getChartConfig(ticker, labels, data, yMin, yMax) {
+function getChartConfig(ticker, labels, data, yMin, yMax, color='blue') {
   return {
     type: "line",
     data: {
@@ -253,6 +211,7 @@ function getChartConfig(ticker, labels, data, yMin, yMax) {
       datasets: [{
         label: ticker,
         data,
+        borderColor: color,
         borderWidth: 1.5,
         fill: false,
         tension: 0.2,

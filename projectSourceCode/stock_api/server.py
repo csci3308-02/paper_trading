@@ -71,13 +71,15 @@ def handle_stock_request():
                     results.append({
                         "ticker": symbol,
                         "name": db_stock['company_name'],
-                        "price": new_price
+                        "price": new_price,
+                        "open": info.get("regularMarketOpen"),
                     })
                 else:
                     results.append({
                         "ticker": symbol,
                         "name": db_stock['company_name'],
-                        "price": db_stock['last_price']
+                        "price": db_stock['last_price'],
+                        "open": info.get("regularMarketOpen"),
                     })
             else:
                 stock = yf.Ticker(symbol)
@@ -94,7 +96,8 @@ def handle_stock_request():
                 results.append({
                     "ticker": symbol,
                     "name": name,
-                    "price": price
+                    "price": price,
+                    "open": info.get("regularMarketOpen"),
                 })
 
             cur.close()
@@ -120,9 +123,17 @@ def handle_history_request():
         '3mo': '1h',
         '6mo': '1h',
         '1y': '1d',
-        '5y': '1d',
+        '5y': '5d',
     }
-    interval = interval_mapping.get(period, '1d')  # fallback to 1d
+
+    if (period == 'ytd'):
+        now = datetime.now()
+        if now.month <= 6:  # jan to jun = less data, show more detail
+            interval = '1h'
+        else:
+            interval = '1d'
+    else:
+        interval = interval_mapping.get(period, '1d')  # fallback
 
     try:
         stock = yf.Ticker(ticker)
