@@ -75,8 +75,7 @@ function simulateChart(period) {
     .catch(err => setText("currentPrice", `Error: ${err.message}`));
 }
 
-
-function startLiveChart() {
+function startLiveChart() { //this version of startLiveChart tries to pull the whole of todays data as well so the live chart is not so small and narrow
   if (isMarketClosed()) {
     alert("Market is closed. Please try again during market hours.");
     return;
@@ -94,35 +93,34 @@ function startLiveChart() {
   const ctx = document.getElementById("stockChart").getContext("2d");
   if (chart) chart.destroy();
 
-  // get 1d of data and filter by time
+
+  //get todays data
   fetch(`/api/history?ticker=${ticker}&period=1d&interval=1m`)
     .then(res => res.json())
     .then(data => {
       if (!data || data.length === 0) throw new Error("No data returned");
 
-      const timeAgo = Date.now() - 60 * 1 * 1000; // set to 1 minute ago, wont change the chart much. set to a higher value to show data from earlier, but it scales weirdly so i suggest not to
-
-      const filtered = data.filter(p => {
-        const t = new Date(p.time).getTime();
-        return t >= timeAgo;
-      });
-
-      const labels = filtered.map(p => p.time);
-      const prices = filtered.map(p => p.price);
+      const labels = data.map(p => p.time);
+      const prices = data.map(p => p.price);
       const [min, max] = getMinMax(prices);
       const buffer = (max - min) * 0.03;
 
-      const latest = filtered.at(-1);
-      setText("currentPrice", `${ticker}: $${latest.price.toFixed(2)} @ ${formatTime(latest.time)}`);
-      const color = latest.price > prices[0] ? 'rgba(10, 167, 41, 0.8)' : 'rgba(255, 32, 0, 0.77)'; // check if curent price > first price on chart
-      createChart(ticker, labels, prices, min - buffer, max + buffer, color);
+      const latest = data.at(-1);
+      const newColor = latest.price >= latest.open
+      ? 'rgba(10, 167, 41, 0.8)'  // green
+      : 'rgba(255, 32, 0, 0.77)'; // red
+      chart.data.datasets[0].borderColor = newColor;
+
+      chart = new Chart(ctx, getChartConfig(ticker, labels, prices, min - buffer, max + buffer, newColor));
       historicalData = prices;
+
+      setText("currentPrice", `${ticker}: $${latest.price.toFixed(2)} @ ${formatTime(latest.time)}`);
     })
     .catch(err => {
       setText("currentPrice", `Error: ${err.message}`);
     });
 
-  // Start live updates every second
+  let updateCount = 0;
   interval = setInterval(() => {
     fetch(`/api/stock?ticker=${ticker}&live=true`)
       .then(res => res.json())
@@ -133,19 +131,24 @@ function startLiveChart() {
         const now = new Date();
         const price = parseFloat(stock.price);
 
-        chart.data.labels.push(now.toISOString());
-        chart.data.datasets[0].data.push(price);
+        if (updateCount === 0) {
+          chart.data.labels.push(now.toISOString());
+          chart.data.datasets[0].data.push(price);
 
-        chart.data.datasets[0].borderColor = price > stock.open
-          ? 'rgba(10, 167, 41, 0.8)'
-          : 'rgba(255, 32, 0, 0.77)';
+          const newColor = price >= stock.open
+          ? 'rgba(10, 167, 41, 0.8)'  // green
+          : 'rgba(255, 32, 0, 0.77)'; // red
+          chart.data.datasets[0].borderColor = newColor;
 
-        const [min, max] = getMinMax(chart.data.datasets[0].data);
-        const buffer = (max - min) * 0.03;
-        chart.options.scales.y.min = min - buffer;
-        chart.options.scales.y.max = max + buffer;
+          const [min, max] = getMinMax(chart.data.datasets[0].data);
+          const buffer = (max - min) * 0.03;
+          chart.options.scales.y.min = min - buffer;
+          chart.options.scales.y.max = max + buffer;
 
-        chart.update();
+          chart.update();
+        }
+        updateCount++;
+        if (updateCount === 10) { updateCount = 0; } 
 
         setText("currentPrice", `${stock.name} (${stock.ticker}): $${price.toFixed(2)} @ ${formatTime(now)}`);
       });
