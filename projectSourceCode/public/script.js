@@ -38,13 +38,20 @@ function simulateChart(period) {
     period = '1d';
   }
 
+  //highlight selected period
+  document.querySelectorAll('#periodButtons button').forEach(btn => {
+    btn.classList.remove('active-period');
+  });
+  const activeBtn = document.querySelector(`#periodButtons button[data-period="${period}"]`);
+  if (activeBtn) activeBtn.classList.add('active-period');
+
   clearInterval(interval);
   historicalData = [];
 
   const ticker = getTicker();
   if (!ticker) return;
 
-  setText("currentPrice", `Fetching history for ${ticker}...`);
+  //setText("currentPrice", `Fetching history for ${ticker}...`);
   
   fetch(`/api/history?ticker=${ticker}&period=${period}`)
     .then(res => res.json())
@@ -62,8 +69,34 @@ function simulateChart(period) {
       setText("chartDate", `Data for: ${fullDate}`);
 
       const latest = data.at(-1);
-      setText("currentPrice", `${ticker}: $${latest.price.toFixed(2)} @ ${formatTime(latest.time)}`);
 
+      fetch(`/api/stock?ticker=${ticker}&live=true`)
+        .then(res => res.json())
+        .then(stockData => {
+          const stock = stockData[0];
+          if (!stock || stock.price == null) return;
+
+          const change = latest.price - prices[0];
+          const changePercent = (change / prices[0]) * 100;
+          const changeClass = change >= 0 ? 'change-positive' : 'change-negative';
+
+          setText("currentPrice", `
+            <div class="stock-header">
+              <div class="stock-name">${stock.name} (${stock.ticker})</div>
+              <div class="stock-price">$${latest.price.toFixed(2)}</div>
+              <div class="stock-change ${changeClass}">
+                ${change >= 0 ? '+' : '-'}$${Math.abs(change).toFixed(2)} (${changePercent.toFixed(2)}%)
+              </div>
+              <div class="stock-time">@ ${formatTime(latest.time)}</div>
+            </div>
+          `);
+
+          displayStockInfo(stock);
+        })
+        .catch(err => {
+          console.error("Info fetch failed", err);
+        });
+      
       const color = latest.price > prices[0] ? 'rgba(10, 167, 41, 0.8)' : 'rgba(255, 32, 0, 0.77)'; // check if curent price > first price on chart
       createChart(ticker, labels, prices, min - buffer, max + buffer, color);
 
@@ -75,7 +108,7 @@ function simulateChart(period) {
     .catch(err => setText("currentPrice", `Error: ${err.message}`));
 }
 
-function startLiveChart() { //this version of startLiveChart tries to pull the whole of todays data as well so the live chart is not so small and narrow
+function startLiveChart() {
   if (isMarketClosed()) {
     alert("Market is closed. Please try again during market hours.");
     return;
@@ -87,14 +120,12 @@ function startLiveChart() { //this version of startLiveChart tries to pull the w
   const ticker = getTicker();
   if (!ticker) return;
 
-  setText("currentPrice", `Starting live updates for ${ticker}...`);
+  //setText("currentPrice", `Starting live updates for ${ticker}...`);
   setText("chartDate", "Live Mode");
 
   const ctx = document.getElementById("stockChart").getContext("2d");
   if (chart) chart.destroy();
 
-
-  //get todays data
   fetch(`/api/history?ticker=${ticker}&period=1d&interval=1m`)
     .then(res => res.json())
     .then(data => {
@@ -107,52 +138,70 @@ function startLiveChart() { //this version of startLiveChart tries to pull the w
 
       const latest = data.at(-1);
       const newColor = latest.price >= latest.open
-      ? 'rgba(10, 167, 41, 0.8)'  // green
-      : 'rgba(255, 32, 0, 0.77)'; // red
-      chart.data.datasets[0].borderColor = newColor;
+        ? 'rgba(10, 167, 41, 0.8)'
+        : 'rgba(255, 32, 0, 0.77)';
 
       chart = new Chart(ctx, getChartConfig(ticker, labels, prices, min - buffer, max + buffer, newColor));
       historicalData = prices;
 
-      setText("currentPrice", `${ticker}: $${latest.price.toFixed(2)} @ ${formatTime(latest.time)}`);
+      fetchAndUpdateLiveData(ticker); // initial fetch
+      interval = setInterval(() => fetchAndUpdateLiveData(ticker), 1000); // keep repeating
     })
     .catch(err => {
       setText("currentPrice", `Error: ${err.message}`);
     });
+}
 
-  let updateCount = 0;
-  interval = setInterval(() => {
-    fetch(`/api/stock?ticker=${ticker}&live=true`)
-      .then(res => res.json())
-      .then(data => {
-        const stock = data[0];
-        if (!stock || stock.price == null) return;
+let updateCounter = 0;
 
-        const now = new Date();
-        const price = parseFloat(stock.price);
+function fetchAndUpdateLiveData(ticker) {
+  fetch(`/api/stock?ticker=${ticker}&live=true`)
+    .then(res => res.json())
+    .then(data => {
+      const stock = data[0];
+      if (!stock || stock.price == null) return;
 
-        if (updateCount === 0) {
-          chart.data.labels.push(now.toISOString());
-          chart.data.datasets[0].data.push(price);
+      const now = new Date();
+      const price = parseFloat(stock.price);
 
-          const newColor = price >= stock.open
-          ? 'rgba(10, 167, 41, 0.8)'  // green
-          : 'rgba(255, 32, 0, 0.77)'; // red
-          chart.data.datasets[0].borderColor = newColor;
+      // only update the chart every 10 seconds
+      if (updateCounter % 10 === 0) {
+        chart.data.labels.push(now.toISOString());
+        chart.data.datasets[0].data.push(price);
 
-          const [min, max] = getMinMax(chart.data.datasets[0].data);
-          const buffer = (max - min) * 0.03;
-          chart.options.scales.y.min = min - buffer;
-          chart.options.scales.y.max = max + buffer;
+        const newColor = price >= stock.open
+          ? 'rgba(10, 167, 41, 0.8)'
+          : 'rgba(255, 32, 0, 0.77)';
+        chart.data.datasets[0].borderColor = newColor;
 
-          chart.update();
-        }
-        updateCount++;
-        if (updateCount === 10) { updateCount = 0; } 
+        const [min, max] = getMinMax(chart.data.datasets[0].data);
+        const buffer = (max - min) * 0.03;
+        chart.options.scales.y.min = min - buffer;
+        chart.options.scales.y.max = max + buffer;
 
-        setText("currentPrice", `${stock.name} (${stock.ticker}): $${price.toFixed(2)} @ ${formatTime(now)}`);
-      });
-  }, 1000);
+        chart.update();
+      }
+
+      updateCounter++;
+
+      const firstPrice = chart.data.datasets[0].data[0];
+      const change = price - firstPrice;
+      const changePercent = (change / firstPrice) * 100;
+      const changeClass = change >= 0 ? 'change-positive' : 'change-negative';
+
+      setText("currentPrice", `
+        <div class="stock-header">
+          <div class="stock-name">${stock.name} (${stock.ticker})</div>
+          <div class="stock-price">$${price.toFixed(2)}</div>
+          <div class="stock-change ${changeClass}">
+            ${change >= 0 ? '+' : '-'}$${Math.abs(change).toFixed(2)} (${changePercent.toFixed(2)}%)
+          </div>
+          <div class="stock-time">@ ${formatTime(now)}</div>
+        </div>
+      `);      
+
+      displayStockInfo(stock);
+    });
 }
 
 function isMarketClosed() {
