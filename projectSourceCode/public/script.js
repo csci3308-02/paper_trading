@@ -224,26 +224,20 @@ function getChartConfig(ticker, labels, data, yMin, yMax, color='blue') {
     },
     options: {
       animation: false,
-      animations: {
-        tension: { duration: 0 },
-        x: { duration: 0 },
-        y: { duration: 0 }
-      },
+      animations: false,
       responsive: true,
       maintainAspectRatio: false,
       scales: {
         x: {
           title: { display: true, text: "Time" },
           ticks: {
-            maxTicksLimit: 20,
-            callback: (value) => {
-              const fullTime = value;
-              return new Date(fullTime).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit'
-              });
+            maxTicksLimit: 12,
+            callback: function(value, index, ticks) {
+              const maxLength = 11;
+              let label = this.getLabelForValue(value);
+            return label.length > maxLength ? label.substring(16, maxLength) : label;
             }
-          }
+          },
         },
         y: {
           min: yMin,
