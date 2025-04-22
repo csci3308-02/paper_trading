@@ -43,6 +43,15 @@ def get_stock_price(symbol):
         return Decimal(str(stock.info.get("regularMarketPrice", 0)))
     except:
         return None
+    
+@app.route('/api/price/<symbol>')
+def get_price(symbol):
+    """Return the current price for a single stock symbol"""
+    symbol = symbol.upper()
+    price = get_stock_price(symbol)
+    if price is None:
+        return jsonify({ 'error': 'Symbol not found or price unavailable' }), 404
+    return jsonify({ 'price': float(price) })
 
 def validate_trade(conn, user_id, symbol, quantity, trade_type):
     """Validate if a trade can be executed"""

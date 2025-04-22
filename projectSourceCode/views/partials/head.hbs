@@ -74,7 +74,6 @@
                         Profile
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="/profile">My Account</a></li>
                             <li><a class="dropdown-item" href="/portfolio">My Portfolio</a></li>
                             <li><a class="dropdown-item" href="/settings">Settings</a></li>
                             <li>
@@ -84,6 +83,8 @@
                             </li>
                         </ul>
                     </div>
+                {{else}}
+                    <a href="/login" class="btn btn-primary btn-sm">Log In</a>
                 {{/if}}
             </div>
         </div>
