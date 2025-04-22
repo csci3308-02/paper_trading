@@ -70,7 +70,7 @@ nav, nav a, nav ul, nav li {
 }
 
 .change-positive {
-  color: #00c805;
+  color: var(--accent);
 }
 .change-negative {
   color: #ff4c4c;
@@ -120,6 +120,55 @@ button:hover {
   background-color: #00a504;
 }
 
+.dropdown-menu {
+  background-color: var(--surface) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border);
+}
+  
+.dropdown-menu .dropdown-item {
+  color: var(--text-primary) !important;
+}
+
+.dropdown-menu .dropdown-item:hover {
+  background-color: var(--accent) !important;
+  color: #fff !important;
+}
+  
+.dropdown-divider {
+  border-color: var(--border);
+}
+
+#searchResults {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  z-index: 1000;
+  display: none;
+  position: absolute;
+  width: 100%;
+}
+
+#searchResults .list-group-item {
+  background-color: var(--surface);
+  color: var(--text-primary);
+  border: none;
+}
+
+#searchResults .list-group-item:hover {
+  background-color: var(--accent);
+  color: #fff;
+}
+
+#searchResults .text-muted {
+  color: var(--text-secondary) !important;
+}
+
+#searchResults .text-primary {
+  color: var(--accent) !important;
+}
+
 canvas {
   background-color: var(--surface);
   border-radius: 12px;
@@ -128,6 +177,7 @@ canvas {
 }
 
 #chartContainer {
+  max-width:850px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -149,6 +199,7 @@ canvas {
   text-align: left;
   font-size: 1.1rem;
   box-shadow: 0 0 10px rgba(0,0,0,0.4);
+  max-width: 400px;
 }
 
 #stockInfoBox h3 {

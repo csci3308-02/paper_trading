@@ -2,3 +2,6 @@ yfinance
 flask
 flask-cors
 psycopg2-binary
+sqlalchemy
+bcrypt
+python-dotenv
