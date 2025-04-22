@@ -1,10 +1,3 @@
-<h1>Stock Chart Simulator</h1>
-
-<div class="controls">
-  <button onclick="startLiveChart()">Start Live Chart</button>
-  <button onclick="chart.resetZoom()">Reset Zoom</button>
-</div>
-
 <div id="currentPrice"></div>
 <div id="chartDate" style="margin: 10px 0; font-style: italic;"></div>
 
@@ -23,7 +16,7 @@
 </div>
 
 <div id="periodButtons" style="margin: 10px 0;">
-  <button data-period="1d" onclick="simulateChart('1d')">1D</button>
+  <button data-period="1d" onclick="simulateDay()">1D</button>
   <button data-period="5d" onclick="simulateChart('5d')">5D</button>
   <button data-period="1mo" onclick="simulateChart('1mo')">1M</button>
   <button data-period="3mo" onclick="simulateChart('3mo')">3M</button>
@@ -31,6 +24,7 @@
   <button data-period="ytd" onclick="simulateChart('ytd')">YTD</button>
   <button data-period="1y" onclick="simulateChart('1y')">1Y</button>
   <button data-period="5y" onclick="simulateChart('5y')">5Y</button>
+  <button onclick="chart.resetZoom()">Reset Zoom</button>
 </div>
 
 <!-- Scripts -->
@@ -44,12 +38,11 @@
     const urlParams = new URLSearchParams(window.location.search);
     const symbol = urlParams.get('symbol');
 
-    if (symbol) {
+    if (symbol && symbol.toUpperCase() !== "PORTFOLIO") {
       // Load the chart directly using the URL param
-      setTimeout(() => simulateChart(), 300); 
+      setTimeout(() => startLiveChart(), 300); 
     } else {
       console.warn("No ticker symbol provided in the URL.");
     }
   });
 </script>
-

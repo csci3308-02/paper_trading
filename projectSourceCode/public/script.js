@@ -108,11 +108,25 @@ function simulateChart(period) {
     .catch(err => setText("currentPrice", `Error: ${err.message}`));
 }
 
+function simulateDay(){
+  if (isMarketClosed()){
+    simulateChart('1d');
+  } else {
+    startLiveChart();
+  }
+}
+
 function startLiveChart() {
   if (isMarketClosed()) {
     alert("Market is closed. Please try again during market hours.");
     return;
   }
+
+  document.querySelectorAll('#periodButtons button').forEach(btn => {
+    btn.classList.remove('active-period');
+  });
+  const liveBtn = document.querySelector('#periodButtons button[data-period="1d"]');
+  if (liveBtn) liveBtn.classList.add('active-period');
 
   clearInterval(interval);
   historicalData = [];
