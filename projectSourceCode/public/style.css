@@ -116,6 +116,10 @@ button {
   transition: background 0.3s ease;
 }
 
+.login-card h2 {
+  text-align: center;
+}  
+
 button:hover {
   background-color: #00a504;
 }
@@ -272,8 +276,7 @@ input::placeholder {
   background-color: #00a504 !important;
 }
 
-
-form {
+form:not([action="/logout"]) {
   max-width: 400px;
   margin: auto;
   background-color: var(--surface);

@@ -38,9 +38,18 @@
     const urlParams = new URLSearchParams(window.location.search);
     const symbol = urlParams.get('symbol');
 
-    if (symbol && symbol.toUpperCase() !== "PORTFOLIO") {
-      // Load the chart directly using the URL param
-      setTimeout(() => startLiveChart(), 300); 
+    if (symbol) {
+      setTimeout(() => {
+        if (symbol.toLowerCase() === 'portfolio') {
+          simulateChart('1d');
+        } else {
+          if (isMarketClosed()) {
+            simulateChart('1d');
+          } else {
+            startLiveChart();
+          }
+        }
+      }, 300);
     } else {
       console.warn("No ticker symbol provided in the URL.");
     }
