@@ -8,7 +8,7 @@ const session = require('express-session');
 const bodyParser = require('body-parser');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const bcrypt = require('bcrypt');
-
+const fetch1 = require('node-fetch');
 const app = express();
 
 // ----------------------------------   STATIC FILES   ----------------------------------------------
@@ -30,7 +30,6 @@ app.set('views', path.join(__dirname, 'views'));
 
 // ----------------------------------   MIDDLEWARE   --------------------------------------------------
 
-app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use(
@@ -69,7 +68,6 @@ db.connect()
   .catch(error => {
     console.log('ERROR', error.message || error);
   });
-
 
 // ----------------------------------   API ENDPOINT TO ALPHAVANTAGE FOR LOADMORE   ----------------------------------
 
@@ -119,11 +117,30 @@ app.get('/api/news', async (req, res) => {
   }
 });
 
+// ----------------------------------   API ENDPOINT FOR SEARCH   ----------------------------------
+
+app.use('/api/search', createProxyMiddleware({
+  target: 'http://api:8000',
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api/search': '/api/search' // Ensure path is preserved
+  },
+  onProxyReq: (proxyReq, req, res) => {
+    console.log(`Proxying request: ${req.originalUrl}`) // Debug logging
+  }
+}));
+
 // ----------------------------------   API PROXY TO PYTHON SERVER   ----------------------------------
 
 app.use('/api', createProxyMiddleware({
   target: 'http://api:8000',
-  changeOrigin: true
+  changeOrigin: true,
+  onProxyReq: (proxyReq, req, res) => {
+    // Forward the user ID from session to the Python API
+    if (req.session.user) {
+      proxyReq.setHeader('X-User-ID', req.session.user.user_id);
+    }
+  }
 }));
 
 // ----------------------------------   ROUTES   ------------------------------------------------------
@@ -192,8 +209,8 @@ app.post('/register', async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     await db.none(
-      "INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3)",
-      [username, email, hashedPassword]
+      "INSERT INTO users (username, email, password_hash, balance) VALUES ($1, $2, $3, $4)",
+      [username, email, hashedPassword, 10000.00]
     );
     res.redirect('/login');
   } catch (error) {
@@ -202,29 +219,15 @@ app.post('/register', async (req, res) => {
   }
 });
 
-app.use('/api/search', createProxyMiddleware({
-  target: 'http://api:8000',
-  changeOrigin: true,
-  pathRewrite: {
-    '^/api/search': '/api/search' // Ensure path is preserved
-  },
-  onProxyReq: (proxyReq, req, res) => {
-    console.log(`Proxying request: ${req.originalUrl}`) // Debug logging
-  }
-}));
-
-
-
-// API route for Order History Page
 app.get('/orderhistory', async (req, res) => {
   if (!req.session.user) {
-      return res.redirect('/login'); // Redirect if not logged in !! create login API
+      return res.redirect('/login');
   }
 
   try {
       const orders = await db.any(
-          'SELECT stock_name, symbol, price, quantity, type, created_at FROM orders WHERE user_id = $1 ORDER BY created_at DESC', // sample query can change depending on info needed
-          [req.session.user.id]
+          'SELECT s.company_name as stock_name, s.symbol, t.price, t.quantity, t.transaction_type as type, t.transaction_date as created_at FROM transactions t JOIN stocks s ON t.stock_id = s.stock_id WHERE t.user_id = $1 ORDER BY t.transaction_date DESC',
+          [req.session.user.user_id]
       );
       res.render('pages/orderhistory', { orders });
   } catch (error) {
@@ -309,6 +312,18 @@ async function getPortfolioData(userId) {
        WHERE h.user_id = $1`,
       [userId]
     );
+
+    for (let holding of holdingsResult) {
+      try {
+        const res = await fetch(`http://api:8000/api/stock?ticker=${holding.symbol}&live=true`);
+        const [liveData] = await res.json();
+        if (liveData && liveData.price) {
+          holding.last_price = liveData.price;
+        }
+      } catch (err) {
+        console.error(`Failed to update live price for ${holding.symbol}`, err);
+      }
+    }
 
     // Calculate the total value of holdings.
     const holdingsValue = holdingsResult.reduce((acc, holding) => {
@@ -490,6 +505,14 @@ app.get('/news', async (req, res) => {
     console.error('Error fetching news:', error);
     res.status(500).send('Internal Server Error');
   }
+});
+
+app.get('/trade', auth, (req, res) => {
+  const symbol = req.query.symbol || '';
+  res.render('pages/trade', { 
+    symbol,
+    user: req.session.user
+  });
 });
 
 // *****************************************************

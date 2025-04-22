@@ -8,7 +8,7 @@
 <body>
   <div class="container mt-4">
     <h1>Daily News</h1>
-    <p class="text-muted">News pulled at: {{pulledAt}}</p>
+    <p class="color: var(--text-primary);">News pulled at: {{pulledAt}}</p>
 
     <form method="GET" action="/news" class="mb-4" id="searchForm">
       <div class="input-group">
@@ -30,7 +30,7 @@
                 <p class="card-text">{{this.summary}}</p>
                 <a href="{{this.url}}" target="_blank" class="btn btn-primary">Read More</a>
               </div>
-              <div class="card-footer text-muted">
+              <div class="card-footer color: var(--text-primary);">
                 Published on: {{this.time_published}}
               </div>
             </div>

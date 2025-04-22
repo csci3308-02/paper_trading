@@ -6,9 +6,9 @@
     <title>{{title}}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    <style>
+        <style>
         .logo-img {
-            height: 40px; 
+            height: 50px; 
             width: auto;
             transition: all 0.3s ease; /* Smooth hover effect */
         }
@@ -18,12 +18,6 @@
         .market-change-positive { color: #28a745; }
         .market-change-negative { color: #dc3545; }
         .search-container { position: relative; }
-        #searchResults {
-            position: absolute;
-            width: 100%;
-            z-index: 1000;
-            display: none;
-        }
         .search-result-item { cursor: pointer; }
         .search-result-item:hover { background-color: #f8f9fa; }
         .timestamp { font-size: 0.8rem; color: #6c757d; }
@@ -31,7 +25,7 @@
 </head>
 <body>
     <!-- Section 1: Market Data and Login/out button -->
-    <div class="container-fluid py-1 bg-light border-bottom">
+    <!--<div class="container-fluid py-2" style="background-color: var(--background);">
         <div class="row align-items-center">
             <div class="col-md-8">
                 <div class="d-flex flex-wrap align-items-center market-data-container gap-3">
@@ -50,10 +44,10 @@
                 {{/if}}
             </div>
         </div>
-    </div>
+    </div>-->
     
     <!-- Section 2: Logo and User Actions -->
-    <div class="container-fluid py-2 border-bottom">
+    <div class="container-fluid py-2">
         <div class="d-flex justify-content-between align-items-center">
             <a href="/" class="text-decoration-none">
                 <img src="https://png.pngtree.com/png-vector/20240905/ourmid/pngtree-charging-bull-in-downtown-manhattan-financial-architecture-wall-png-image_13771276.png" 
@@ -62,7 +56,7 @@
             </a>
             <div class="d-flex gap-2">
                 {{#if user}}
-                    <div class="dropdown">
+                    <!--<div class="dropdown">
                         <button class="btn btn-outline-secondary dropdown-toggle btn-sm" type="button" 
                                 data-bs-toggle="dropdown">
                             Alerts
@@ -73,16 +67,21 @@
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="#">Manage Alerts</a></li>
                         </ul>
-                    </div>
+                    </div>-->
                     <div class="dropdown">
                         <button class="btn btn-outline-primary dropdown-toggle btn-sm" type="button" 
                                 data-bs-toggle="dropdown" aria-expanded="false">
                         Profile
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item" href="/profile">My Account</a></li>
-                        <li><a class="dropdown-item" href="/portfolio">My Portfolio</a></li>
-                        <li><a class="dropdown-item" href="/settings">Settings</a></li>
+                            <li><a class="dropdown-item" href="/profile">My Account</a></li>
+                            <li><a class="dropdown-item" href="/portfolio">My Portfolio</a></li>
+                            <li><a class="dropdown-item" href="/settings">Settings</a></li>
+                            <li>
+                                <form action="/logout" method="POST">
+                                    <button type="submit" class="dropdown-item logout-item">Log Out</button>
+                                </form>
+                            </li>
                         </ul>
                     </div>
                 {{/if}}
@@ -91,7 +90,7 @@
     </div>
     
     <!-- Section 3: Search Bar -->
-    <div class="container-fluid py-2 bg-light">
+    <div class="container-fluid py-2" style="background-color: var(--background);">
         <div class="row">
             <div class="col-md-6 search-container">
                 <form class="d-flex" id="searchForm">
