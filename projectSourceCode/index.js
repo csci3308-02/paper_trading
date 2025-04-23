@@ -502,58 +502,59 @@ app.get('/portfolio', auth, async (req, res) => {
   }
 });
 
-// news page route using AlphaVantage API
+// news page route using Finnhub API
 app.get('/news', async (req, res) => {
   try {
-    const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
-    const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey=${apiKey}`;
+    const apiKey = process.env.FINNHUB_API_KEY;
+    // Finnhub “general” news endpoint
+    const url = `https://finnhub.io/api/v1/news?category=general&token=${apiKey}`;
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error('Failed to fetch news from Alphavantage.');
+      throw new Error(`Failed to fetch news from Finnhub (${response.status})`);
     }
     const newsData = await response.json();
-    let feed = Array.isArray(newsData.feed) ? newsData.feed : [];
-    
-    // search bar
+    // Finnhub returns an array of { headline, summary, url, datetime, source, image }
+    let feed = Array.isArray(newsData) ? newsData : [];
+
+    // map to your existing shape
+    feed = feed.map(item => ({
+      title: item.headline,
+      summary: item.summary || '',
+      url: item.url,
+      // convert Unix secs → ISO string for Handlebars
+      time_published: new Date(item.datetime * 1000).toLocaleString()
+    }));
+
+    // keyword filter
     const keyword = req.query.keyword ? req.query.keyword.trim() : '';
-    
     if (keyword) {
-      feed = feed.filter(item => {
-        const title = item.title ? item.title.toLowerCase() : "";
-        const summary = item.summary ? item.summary.toLowerCase() : "";
-        return title.includes(keyword.toLowerCase()) || summary.includes(keyword.toLowerCase());
-      });
+      const kw = keyword.toLowerCase();
+      feed = feed.filter(item =>
+        item.title.toLowerCase().includes(kw) ||
+        item.summary.toLowerCase().includes(kw)
+      );
     }
-    
-    // reformat dates and get at most 10 items at a time
+
+    // paginate
     const totalItems = feed.length;
-    let paginatedNews = feed.slice(0, 10).map(item => {
-      if (item.time_published && typeof item.time_published === 'string' && item.time_published.length >= 15) {
-        const isoStr = item.time_published.slice(0, 4) + '-' +
-                       item.time_published.slice(4, 6) + '-' +
-                       item.time_published.slice(6, 8) + 'T' +
-                       item.time_published.slice(9, 11) + ':' +
-                       item.time_published.slice(11, 13) + ':' +
-                       item.time_published.slice(13, 15);
-        item.time_published = new Date(isoStr).toLocaleString();
-      }
-      return item;
-    });
-    // info for load more
-    const nextOffset = 10;
-    const hasMore = nextOffset < totalItems;
-    // record when news was pulled
+    const offset     = parseInt(req.query.offset, 10) || 0;
+    const pageSize   = 10;
+    const paginated  = feed.slice(offset, offset + pageSize);
+    const nextOffset = offset + pageSize;
+    const hasMore    = nextOffset < totalItems;
+
     const pullTimestamp = new Date().toLocaleString();
-    
+
+    // render exactly as before
     res.render('pages/news', {
-      news: { feed: paginatedNews },
+      news:     { feed: paginated },
       pulledAt: pullTimestamp,
       keyword,
       nextOffset,
       hasMore,
       showHeader: true
     });
-    
+
   } catch (error) {
     console.error('Error fetching news:', error);
     res.status(500).send('Internal Server Error');
