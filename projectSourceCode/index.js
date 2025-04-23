@@ -637,4 +637,17 @@ app.post('/settings', auth, async (req, res) => {
 // starting the server and keeping the connection open to listen for more requests
 app.listen(3000, () => {
   console.log('Server is running at http://localhost:3000');
+  // Wake up Flask API server
+  (async () => {
+    try {
+      const res = await fetch(`https://flask-api-nhm2.onrender.com/api/market-status`);
+      if (res.ok) {
+        console.log('✅ Flask API woke up successfully');
+      } else {
+        console.warn(`⚠️ Flask API wake-up ping returned ${res.status} [500 = Market Closed]`);
+      }
+    } catch (err) {
+      console.error('❌ Error pinging Flask API to wake it up:', err.message);
+    }
+  })();
 });
