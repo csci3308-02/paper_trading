@@ -1,3 +1,8 @@
+4-22-2025 Lots of styling and QOL changes
+Integrated the trade page! Users can buy and sell stocks according to the live market. 
+Updated the navigation bar to better reflect current pages
+Added a login button in place of the profile button when logged out
+
 4-16-2025 News API Integrated and visible portfolio page
 Portfolio page features basic information and some statistical information to help the user see their progress in making money
 News API shows recent daily news with an ability to search for specific keywords

@@ -44,6 +44,17 @@
             background: var(--background);
             border-radius: 4px;
         }
+        /* BEGIN ADDITION: Estimated Price styling */
+        .estimated-group {
+            margin-top: 1rem;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        #estimatedPrice {
+            margin-top: 0.25rem;
+            color: var(--text-primary);
+        }
+        /* END ADDITION */
     </style>
 </head>
 <body>
@@ -71,6 +82,13 @@
                         <small class="color: var(--text-primary);">Min: 0.01 shares</small>
                     </div>
                     
+                    <!-- BEGIN ADDITION: Estimated Price display -->
+                    <div class="form-group estimated-group">
+                        <label>Estimated Price:</label>
+                        <div id="estimatedPrice">—</div>
+                    </div>
+                    <!-- END ADDITION -->
+
                     <div class="form-group">
                         <label for="tradeType">Trade Type:</label>
                         <select id="tradeType" name="tradeType" class="form-control" required>
@@ -122,6 +140,45 @@
             balance: parseFloat("{{user.balance}}") || 0,
             username: "{{user.username}}"
         };
+    </script>
+
+    <script>
+        // Fetch the current price for a symbol
+        async function fetchCurrentPrice(symbol) {
+            try {
+                const res = await fetch(`/api/price/${symbol}`);
+                if (!res.ok) throw new Error('Price fetch failed');
+                const data = await res.json();
+                return parseFloat(data.price);
+            } catch (err) {
+                console.error('Error fetching price:', err);
+                return null;
+            }
+        }
+
+        // Update the Estimated Price display
+        async function updateEstimatedPrice() {
+            const symbol = document.getElementById('symbol').value.trim().toUpperCase();
+            const qty    = parseFloat(document.getElementById('quantity').value);
+            const priceEl = document.getElementById('estimatedPrice');
+
+            if (!symbol || isNaN(qty) || qty <= 0) {
+                priceEl.textContent = '—';
+                return;
+            }
+            const currentPrice = await fetchCurrentPrice(symbol);
+            if (currentPrice === null) {
+                priceEl.textContent = 'N/A';
+                return;
+            }
+            const amount = currentPrice * qty;
+            priceEl.textContent = `$${amount.toFixed(2)}`;
+        }
+
+        // Hook events to update estimate
+        document.getElementById('symbol').addEventListener('change', updateEstimatedPrice);
+        document.getElementById('quantity').addEventListener('input', updateEstimatedPrice);
+        document.getElementById('tradeType').addEventListener('change', updateEstimatedPrice);
     </script>
 
     <script>
@@ -238,6 +295,8 @@
                         document.getElementById('symbol').value = '';
                     }
                     document.getElementById('quantity').value = '';
+                    // Reset estimate after trade
+                    updateEstimatedPrice();
                 } else {
                     messageDiv.innerHTML = `
                         <div class="error-message">
@@ -262,4 +321,4 @@
         });
     </script>
 </body>
-</html> 
+</html>
