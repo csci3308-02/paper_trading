@@ -635,7 +635,8 @@ app.post('/settings', auth, async (req, res) => {
 // <!-- Start Server-->
 // *****************************************************
 // starting the server and keeping the connection open to listen for more requests
-app.listen(3000, () => {
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
   console.log('Server is running at http://localhost:3000');
   // Wake up Flask API server
   (async () => {
