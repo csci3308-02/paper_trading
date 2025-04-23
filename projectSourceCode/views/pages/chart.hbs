@@ -25,7 +25,12 @@
 </head>
 <body>
   <div class="container mt-4">
-    <h1>My Charts</h1>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h1>My Charts</h1>
+      <button id="addChartBtn" class="btn btn-success btn-sm">
+        Add Chart
+      </button>
+    </div>
     <div id="chartsContainer"></div>
   </div>
 
@@ -62,7 +67,6 @@
     </div>
   </template>
 
-  <!-- Chart.js + zoom plugin -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>

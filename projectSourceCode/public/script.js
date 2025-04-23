@@ -19,8 +19,19 @@ const container    = document.getElementById('chartsContainer');
 const templateHTML = document.getElementById('chartTemplate').innerHTML;
 const chartsMap    = new Map();
 
-// ==== Initialize on page load ====
-document.addEventListener('DOMContentLoaded', initDashboard);
+// ==== Initialize on page load + Add-Chart wiring ====
+document.addEventListener('DOMContentLoaded', () => {
+  initDashboard();
+  const addBtn = document.getElementById('addChartBtn');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      const arr = getSymbols();
+      arr.push('');
+      saveSymbols(arr);
+      initDashboard();
+    });
+  }
+});
 
 function initDashboard() {
   container.innerHTML = '';
