@@ -22,6 +22,20 @@ const hbs = handlebars.create({
   layoutsDir: path.join(__dirname, 'views/layouts'),
   partialsDir: path.join(__dirname, 'views/partials'),
   defaultLayout: 'main',
+  helpers: {
+    // Comparison helpers
+    gt: (a, b) => a > b,
+    lt: (a, b) => a < b,
+    gte: (a, b) => a >= b,
+    lte: (a, b) => a <= b,
+    eq: (a, b) => a === b,
+    // Math helpers
+    add: (a, b) => a + b,
+    subtract: (a, b) => a - b,
+    // Formatting
+    formatPrice: (price) => '$' + parseFloat(price || 0).toFixed(2),
+    formatChange: (change) => parseFloat(change || 0).toFixed(2) + '%'
+  }
 });
 
 app.engine('hbs', hbs.engine);
@@ -49,8 +63,8 @@ app.use((req, res, next) => {
 // ----------------------------------   DB CONFIG   ---------------------------------------------------
 
 const dbConfig = {
-  host: process.env.PGHOST || process.env.POSTGRES_HOST || 'localhost',
-  port: process.env.PGPORT ? parseInt(process.env.PGPORT, 10) : 5432,
+  host: 'db',
+  port: 5432,
   database: process.env.POSTGRES_DB,
   user: process.env.POSTGRES_USER,
   password: process.env.POSTGRES_PASSWORD,
@@ -267,13 +281,76 @@ app.get('/home', (req, res) => {
   res.render('pages/home');
 });
 
-// Or if using API data:
-app.get('/leaderboard', async (req, res) => {
+//getTopStocks for leaderboard
+async function getTopStocks(limit = 100) {
   try {
-    const leaderboardData = await getLeaderboardData(); // Your data function
-    res.render('pages/leaderboard', { data: leaderboardData });
+    console.log(`Requesting top ${limit} stocks from API...`);
+    const response = await fetch('http://api:8000/api/top_stocks?limit=' + limit);
+    
+    if (!response.ok) {
+      throw new Error(`API returned status: ${response.status}`);
+    }
+    
+    const stocks = await response.json();
+    console.log(`Retrieved ${stocks.length} stocks from API`);
+    return stocks;
   } catch (error) {
-    res.status(500).send("Error loading leaderboard");
+    console.error('Error fetching top stocks:', error);
+    
+    // Fallback to database if API fails
+    console.log('Falling back to database for stocks'); //querry database for stock info
+    return await db.any(`
+      SELECT 
+        symbol,
+        company_name AS company,
+        last_price AS last_price,
+        0 AS change
+      FROM stocks
+      ORDER BY last_price DESC
+      LIMIT $1
+    `, [limit]);
+  }
+}
+
+// Updated leaderboard route
+app.get('/leaderboard', auth, async (req, res) => {
+  try {
+    // Explicitly request 100 stocks
+    const stocks = await getTopStocks(100);
+    console.log(`Fetched ${stocks.length} stocks for leaderboard`);
+    
+    if (stocks.length === 0) {
+      console.warn('No stocks returned from API or database!');
+    }
+    
+    // Process and filter stocks - remove any with price of 0
+    const processedStocks = stocks
+      .filter(stock => {
+        const price = parseFloat(stock.last_price || stock.price || 0);
+        return price > 0; // Only include stocks with price > 0
+      })
+      .map((stock, index) => ({
+        rank: index + 1,
+        company: stock.company,
+        symbol: stock.symbol,
+        price: parseFloat(stock.last_price || stock.price || 0),
+        change: parseFloat(stock.change || 0),
+        isTopThree: index < 3,
+        isPositive: parseFloat(stock.change || 0) > 0
+      }));
+
+    res.render('pages/leaderboard', { 
+      stocks: processedStocks,
+      lastUpdated: new Date().toLocaleString()
+    });
+    
+  } catch (error) {
+    console.error('Leaderboard error:', error);
+    res.render('pages/leaderboard', { 
+      error: 'Failed to load stock data',
+      stocks: [],
+      lastUpdated: 'Never'
+    });
   }
 });
 
