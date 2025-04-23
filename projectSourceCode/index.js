@@ -83,67 +83,55 @@ db.connect()
     console.log('ERROR', error.message || error);
   });
 
-// ----------------------------------   API ENDPOINT TO ALPHAVANTAGE FOR LOADMORE   ----------------------------------
+// ----------------------------------   API ENDPOINT TO FINNHUB FOR LOADMORE   ----------------------------------
 
 app.get('/api/news', async (req, res) => {
   try {
-    const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
-    const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey=${apiKey}`;
+    const apiKey  = process.env.FINNHUB_API_KEY;
+    const offset  = parseInt(req.query.offset, 10) || 0;
+    const keyword = (req.query.keyword || '').trim().toLowerCase();
+    const pageSize = 10;
+
+    // 1) Fetch “general” news from Finnhub
+    const url = `https://finnhub.io/api/v1/news?category=general&token=${apiKey}`;
     const response = await fetch(url);
-    if (!response.ok) {
-      return res.status(500).json({ error: 'Failed to fetch news.' });
-    }
-    const newsData = await response.json();
-    let feed = Array.isArray(newsData.feed) ? newsData.feed : [];
+    if (!response.ok) throw new Error(`Finnhub returned ${response.status}`);
+    const raw = await response.json();              // raw is an array
 
-    const keyword = req.query.keyword ? req.query.keyword.trim() : '';
-    const offset = parseInt(req.query.offset, 10) || 0;
+    // 2) Map Finnhub’s shape → ours
+    let feed = raw.map(item => ({
+      title:          item.headline,
+      summary:        item.summary || '',
+      url:            item.url,
+      time_published: new Date(item.datetime * 1000).toLocaleString()
+    }));
 
+    // 3) Keyword filter
     if (keyword) {
-      feed = feed.filter(item => {
-         const title = item.title ? item.title.toLowerCase() : "";
-         const summary = item.summary ? item.summary.toLowerCase() : "";
-         return title.includes(keyword.toLowerCase()) || summary.includes(keyword.toLowerCase());
-      });
+      feed = feed.filter(n =>
+        n.title.toLowerCase().includes(keyword) ||
+        n.summary.toLowerCase().includes(keyword)
+      );
     }
-    
-    const totalItems = feed.length;
-    const paginatedNews = feed.slice(offset, offset + 10).map(item => {
-      if (item.time_published && typeof item.time_published === 'string' && item.time_published.length >= 15) {
-        const isoStr = item.time_published.slice(0, 4) + '-' +
-                       item.time_published.slice(4, 6) + '-' +
-                       item.time_published.slice(6, 8) + 'T' +
-                       item.time_published.slice(9, 11) + ':' +
-                       item.time_published.slice(11, 13) + ':' +
-                       item.time_published.slice(13, 15);
-        item.time_published = new Date(isoStr).toLocaleString();
-      }
-      return item;
+
+    // 4) Pagination
+    const totalItems    = feed.length;
+    const paginated     = feed.slice(offset, offset + pageSize);
+    const nextOffset    = offset + pageSize;
+    const hasMore       = nextOffset < totalItems;
+
+    // Always return JSON for your front‐end “Load More”:
+    return res.json({
+      news:       paginated,
+      nextOffset,
+      hasMore
     });
-    
-    const nextOffset = offset + 10;
-    const hasMore = nextOffset < totalItems;
-    
-    res.json({ news: paginatedNews, nextOffset, hasMore });
-  } catch (error) {
-    console.error('API News Error:', error);
+
+  } catch (err) {
+    console.error('API News Error:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
-
-// ----------------------------------   API ENDPOINT FOR SEARCH   ----------------------------------
-
-app.use('/api/search', createProxyMiddleware({
-  target: 'https://flask-api-nhm2.onrender.com',
-  changeOrigin: true,
-  secure: true,
-  pathRewrite: {
-    '^/api/search': '/api/search' // Ensure path is preserved
-  },
-  onProxyReq: (proxyReq, req, res) => {
-    console.log(`Proxying request: ${req.originalUrl}`) // Debug logging
-  }
-}));
 
 // ----------------------------------   API PROXY TO PYTHON SERVER   ----------------------------------
 
