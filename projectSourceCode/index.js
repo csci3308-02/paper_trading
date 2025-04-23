@@ -134,8 +134,9 @@ app.get('/api/news', async (req, res) => {
 // ----------------------------------   API ENDPOINT FOR SEARCH   ----------------------------------
 
 app.use('/api/search', createProxyMiddleware({
-  target: 'http://api:8000',
+  target: 'https://flask-api-nhm2.onrender.com',
   changeOrigin: true,
+  secure: true,
   pathRewrite: {
     '^/api/search': '/api/search' // Ensure path is preserved
   },
@@ -147,8 +148,9 @@ app.use('/api/search', createProxyMiddleware({
 // ----------------------------------   API PROXY TO PYTHON SERVER   ----------------------------------
 
 app.use('/api', createProxyMiddleware({
-  target: 'http://api:8000',
+  target: 'https://flask-api-nhm2.onrender.com',
   changeOrigin: true,
+  secure: true,
   onProxyReq: (proxyReq, req, res) => {
     // Forward the user ID from session to the Python API
     if (req.session.user) {
