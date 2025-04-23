@@ -2,6 +2,7 @@
 Integrated the trade page! Users can buy and sell stocks according to the live market. 
 Updated the navigation bar to better reflect current pages
 Added a login button in place of the profile button when logged out
+Multiple and persistent charts. Users can see multiple charts at once now without it refreshing
 
 4-16-2025 News API Integrated and visible portfolio page
 Portfolio page features basic information and some statistical information to help the user see their progress in making money
