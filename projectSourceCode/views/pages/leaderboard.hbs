@@ -1,40 +1,10 @@
-<!-- 
-  STOCK LEADERBOARD TEMPLATE - BACKEND INTEGRATION GUIDE
-  
-  Backend developers: This template expects a JSON array called 'stocks'
-  with the following structure for each stock item:
-
-  [
-    {
-      "company": "Company Name",  // String - The company name to display
-      "change": 3.42             // Number - The percentage change (positive/negative)
-    },
-    ...
-  ]
-
-  Example of valid data:
-  {
-    "stocks": [
-      {"company": "Apple", "change": 2.5},
-      {"company": "Microsoft", "change": -1.2},
-      {"company": "Google", "change": 4.7}
-    ]
-  }
-
-  Implementation Notes:
-  1. The template uses Handlebars.js syntax ({{#each}}, {{this.property}})
-  2. Change percentages are automatically color-coded (green/red)
-  3. Top 3 positions get special styling (gold/silver/bronze)
-  4. Trend arrows (↑↓) are added automatically based on positive/negative values
--->
-
 <div class="leaderboard-container">
   <div class="leaderboard">
     <h1 class="leaderboard-title">🏆 Stock Leaderboard</h1>
     <div class="player header">
       <div class="rank">Rank</div>
-      <div class="name">Company</div>
-      <div class="score">Change %</div>
+      <div class="name">Company (Symbol)</div>
+      <div class="price">Price</div>
     </div>
     
     {{#each stocks}}
@@ -44,16 +14,19 @@
         </div>
         <div class="name">
           <span class="company-logo">📈</span>
-          {{this.company}}
+          {{this.company}} ({{this.symbol}})
         </div>
-        <div class="score {{#if (gt this.change 0)}}positive{{else}}negative{{/if}}">
-          {{this.change}}%
-          {{#if (gt this.change 0)}}
-            <span class="trend-icon">↑</span>
-          {{else}}
-            <span class="trend-icon">↓</span>
-          {{/if}}
+        <div class="price">
+          {{formatPrice this.price}}
         </div>
+      </div>
+    {{else}}
+      <div class="no-data">
+        {{#if error}}
+          <p class="error-message">{{error}}</p>
+        {{else}}
+          <p>No stock data available</p>
+        {{/if}}
       </div>
     {{/each}}
   </div>
@@ -61,128 +34,128 @@
 
 <style>
   .leaderboard-container {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    max-width: 800px;
+    width: 100%;
+    max-width: 1000px;
     margin: 0 auto;
     padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
   }
-  
+
   .leaderboard {
-    background: white;
-    border-radius: 16px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
+    width: 100%;
   }
-  
+
   .leaderboard-title {
-    text-align: center;
-    color: #2c3e50;
-    padding: 20px 0;
-    margin: 0;
-    font-size: 28px;
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  }
-  
-  .player {
-    display: flex;
-    align-items: center;
     padding: 15px 20px;
-    border-bottom: 1px solid #eee;
-    transition: all 0.3s ease;
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 25px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
   }
-  
+
+  .player {
+    display: grid;
+    grid-template-columns: 70px 3fr 1fr;
+    align-items: center;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    transition: background-color 0.2s ease;
+  }
+
   .player:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-    background: #f9f9f9;
+    background-color: var(--surface);
   }
-  
+
   .header {
-    font-weight: bold;
-    background: #f8f9fa;
-    color: #495057;
+    font-weight: 600;
+    background-color: var(--surface);
+    color: var(--text-primary);
     text-transform: uppercase;
     font-size: 12px;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
   }
-  
-  .rank, .name, .score {
-    padding: 0 10px;
-  }
-  
+
   .rank {
-    width: 60px;
     text-align: center;
+    font-size: 14px;
+    color: var(--text-primary);
   }
-  
-  .name {
-    flex: 1;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  
-  .score {
-    width: 100px;
-    text-align: right;
-    font-weight: bold;
-  }
-  
-  .positive {
-    color: #2ecc71;
-  }
-  
-  .negative {
-    color: #e74c3c;
-  }
-  
+
   .rank-badge {
     display: inline-block;
     width: 28px;
     height: 28px;
     line-height: 28px;
-    border-radius: 50%;
-    background: #e9ecef;
-    color: #495057;
-    font-size: 14px;
-    font-weight: bold;
+    border-radius: 6px;
+    background: var(--border);
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 13px;
   }
-  
-  .company-logo {
-    font-size: 20px;
-  }
-  
-  .trend-icon {
-    margin-left: 5px;
-  }
-  
-  /* Special styling for top 3 positions */
-  .player-row-1 {
-    background: rgba(255, 215, 0, 0.1);
-  }
-  
+
   .player-row-1 .rank-badge {
-    background: #ffd700;
+    background: #388e3c;
     color: white;
   }
-  
-  .player-row-2 {
-    background: rgba(192, 192, 192, 0.1);
-  }
-  
+
   .player-row-2 .rank-badge {
-    background: #c0c0c0;
+    background: #1976d2;
     color: white;
   }
-  
-  .player-row-3 {
-    background: rgba(205, 127, 50, 0.1);
-  }
-  
+
   .player-row-3 .rank-badge {
-    background: #cd7f32;
+    background: #7b1fa2;
     color: white;
+  }
+
+  .name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 500;
+    color: #b1b1b1;
+  }
+
+  .company-logo {
+    font-size: 18px;
+    color: #555;
+  }
+
+  .price {
+    text-align: right;
+    padding-right: 10px;
+    font-weight: 500;
+    color: #b1b1b1;
+  }
+
+  .no-data {
+    padding: 30px 20px;
+    text-align: center;
+    color: #777;
+    font-size: 14px;
+  }
+
+  .error-message {
+    color: #d32f2f;
+    font-weight: 500;
+  }
+
+  @media (max-width: 768px) {
+    .player {
+      grid-template-columns: 50px 2fr 1fr;
+      padding: 10px 15px;
+    }
+    
+    .leaderboard-title {
+      padding: 15px;
+    }
+    
+    .rank-badge {
+      width: 24px;
+      height: 24px;
+      line-height: 24px;
+    }
   }
 </style>
-

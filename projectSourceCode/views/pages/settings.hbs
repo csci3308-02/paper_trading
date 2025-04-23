@@ -1,0 +1,49 @@
+{{!< main}}
+
+<div class="container mt-4" style="max-width: 600px;">
+  <h1>Account Settings</h1>
+
+  {{#if error}}
+    <div class="alert alert-danger">{{error}}</div>
+  {{/if}}
+  {{#if success}}
+    <div class="alert alert-success">Settings saved.</div>
+  {{/if}}
+
+  <form method="POST" action="/settings">
+    <div class="mb-3">
+      <label for="username" class="form-label">New Username</label>
+      <input
+        type="text"
+        class="form-control"
+        id="username"
+        name="username"
+        placeholder="{{user.username}}"
+      >
+    </div>
+
+    <div class="mb-3">
+      <label for="email" class="form-label">New Email</label>
+      <input
+        type="email"
+        class="form-control"
+        id="email"
+        name="email"
+        placeholder="{{user.email}}"
+      >
+    </div>
+
+    <div class="mb-3">
+      <label for="password" class="form-label">New Password</label>
+      <input
+        type="password"
+        class="form-control"
+        id="password"
+        name="password"
+        placeholder="Leave blank to keep current"
+      >
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+  </form>
+</div>

@@ -4,16 +4,15 @@
   <meta charset="UTF-8" />
   <title>Stock Sandbox</title>
   <link rel="stylesheet" href="/style.css" />
+{{#if showHeader}}
   {{>head}}
   {{>nav}}
+{{/if}}
 </head>
 <body>
-
   <main>
     {{{body}}}
   </main>
-
 {{> footer}}
-
 </body>
 </html>

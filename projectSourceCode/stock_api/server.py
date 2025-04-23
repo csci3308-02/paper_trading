@@ -30,7 +30,7 @@ PORT = 8000
 # Database connection
 def get_db_connection():
     return psycopg2.connect(
-        host='db',
+        host=os.getenv('PGHOST'),
         database=os.getenv('POSTGRES_DB'),
         user=os.getenv('POSTGRES_USER'),
         password=os.getenv('POSTGRES_PASSWORD')

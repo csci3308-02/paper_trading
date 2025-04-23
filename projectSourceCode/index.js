@@ -22,6 +22,20 @@ const hbs = handlebars.create({
   layoutsDir: path.join(__dirname, 'views/layouts'),
   partialsDir: path.join(__dirname, 'views/partials'),
   defaultLayout: 'main',
+  helpers: {
+    // Comparison helpers
+    gt: (a, b) => a > b,
+    lt: (a, b) => a < b,
+    gte: (a, b) => a >= b,
+    lte: (a, b) => a <= b,
+    eq: (a, b) => a === b,
+    // Math helpers
+    add: (a, b) => a + b,
+    subtract: (a, b) => a - b,
+    // Formatting
+    formatPrice: (price) => '$' + parseFloat(price || 0).toFixed(2),
+    formatChange: (change) => parseFloat(change || 0).toFixed(2) + '%'
+  }
 });
 
 app.engine('hbs', hbs.engine);
@@ -50,8 +64,8 @@ app.use((req, res, next) => {
 // ----------------------------------   DB CONFIG   ---------------------------------------------------
 
 const dbConfig = {
-  host: process.env.PGHOST || process.env.POSTGRES_HOST || 'localhost',
-  port: process.env.PGPORT ? parseInt(process.env.PGPORT, 10) : 5432,
+  host: process.env.PGHOST,
+  port: 5432,
   database: process.env.POSTGRES_DB,
   user: process.env.POSTGRES_USER,
   password: process.env.POSTGRES_PASSWORD,
@@ -70,72 +84,62 @@ db.connect()
     console.log('ERROR', error.message || error);
   });
 
-// ----------------------------------   API ENDPOINT TO ALPHAVANTAGE FOR LOADMORE   ----------------------------------
+// ----------------------------------   API ENDPOINT TO FINNHUB FOR LOADMORE   ----------------------------------
 
 app.get('/api/news', async (req, res) => {
   try {
-    const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
-    const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey=${apiKey}`;
+    const apiKey  = process.env.FINNHUB_API_KEY;
+    const offset  = parseInt(req.query.offset, 10) || 0;
+    const keyword = (req.query.keyword || '').trim().toLowerCase();
+    const pageSize = 10;
+
+    // 1) Fetch “general” news from Finnhub
+    const url = `https://finnhub.io/api/v1/news?category=general&token=${apiKey}`;
     const response = await fetch(url);
-    if (!response.ok) {
-      return res.status(500).json({ error: 'Failed to fetch news.' });
-    }
-    const newsData = await response.json();
-    let feed = Array.isArray(newsData.feed) ? newsData.feed : [];
+    if (!response.ok) throw new Error(`Finnhub returned ${response.status}`);
+    const raw = await response.json();              // raw is an array
 
-    const keyword = req.query.keyword ? req.query.keyword.trim() : '';
-    const offset = parseInt(req.query.offset, 10) || 0;
+    // 2) Map Finnhub’s shape → ours
+    let feed = raw.map(item => ({
+      title:          item.headline,
+      summary:        item.summary || '',
+      url:            item.url,
+      time_published: new Date(item.datetime * 1000).toLocaleString()
+    }));
 
+    // 3) Keyword filter
     if (keyword) {
-      feed = feed.filter(item => {
-         const title = item.title ? item.title.toLowerCase() : "";
-         const summary = item.summary ? item.summary.toLowerCase() : "";
-         return title.includes(keyword.toLowerCase()) || summary.includes(keyword.toLowerCase());
-      });
+      feed = feed.filter(n =>
+        n.title.toLowerCase().includes(keyword) ||
+        n.summary.toLowerCase().includes(keyword)
+      );
     }
-    
-    const totalItems = feed.length;
-    const paginatedNews = feed.slice(offset, offset + 10).map(item => {
-      if (item.time_published && typeof item.time_published === 'string' && item.time_published.length >= 15) {
-        const isoStr = item.time_published.slice(0, 4) + '-' +
-                       item.time_published.slice(4, 6) + '-' +
-                       item.time_published.slice(6, 8) + 'T' +
-                       item.time_published.slice(9, 11) + ':' +
-                       item.time_published.slice(11, 13) + ':' +
-                       item.time_published.slice(13, 15);
-        item.time_published = new Date(isoStr).toLocaleString();
-      }
-      return item;
+
+    // 4) Pagination
+    const totalItems    = feed.length;
+    const paginated     = feed.slice(offset, offset + pageSize);
+    const nextOffset    = offset + pageSize;
+    const hasMore       = nextOffset < totalItems;
+
+    // Always return JSON for your front‐end “Load More”:
+    return res.json({
+      news:       paginated,
+      nextOffset,
+      hasMore
     });
-    
-    const nextOffset = offset + 10;
-    const hasMore = nextOffset < totalItems;
-    
-    res.json({ news: paginatedNews, nextOffset, hasMore });
-  } catch (error) {
-    console.error('API News Error:', error);
+
+  } catch (err) {
+    console.error('API News Error:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
-// ----------------------------------   API ENDPOINT FOR SEARCH   ----------------------------------
-
-app.use('/api/search', createProxyMiddleware({
-  target: 'http://api:8000',
-  changeOrigin: true,
-  pathRewrite: {
-    '^/api/search': '/api/search' // Ensure path is preserved
-  },
-  onProxyReq: (proxyReq, req, res) => {
-    console.log(`Proxying request: ${req.originalUrl}`) // Debug logging
-  }
-}));
-
 // ----------------------------------   API PROXY TO PYTHON SERVER   ----------------------------------
 
 app.use('/api', createProxyMiddleware({
-  target: 'http://api:8000',
+  target: 'https://flask-api-nhm2.onrender.com',
   changeOrigin: true,
+  secure: true,
   onProxyReq: (proxyReq, req, res) => {
     // Forward the user ID from session to the Python API
     if (req.session.user) {
@@ -171,7 +175,7 @@ app.get('/', (req, res) => {
 
 
 app.get('/login', (req, res) => {
-  res.render('pages/login');
+  res.render('pages/login', {showHeader: false});
 });
 
 
@@ -188,7 +192,7 @@ app.post('/login', async (req, res) => {
 
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
-      return res.render('pages/login', { message: "Incorrect username or password." });
+      return res.render('pages/login', { message: "Incorrect username or password." }, {showHeader: false});
     }
 
     req.session.user = user;
@@ -202,7 +206,7 @@ app.post('/login', async (req, res) => {
 });
 
 app.get('/register', (req, res) => {
-  res.render('pages/register');
+  res.render('pages/register', {showHeader: false});
 });
 
 app.post('/register', async (req, res) => {
@@ -221,7 +225,7 @@ app.post('/register', async (req, res) => {
 });
 
 app.get('/discover', auth, (req, res) => {
-  res.render('pages/discover', { username: req.session.user.username });
+  res.render('pages/discover', { username: req.session.user.username, showHeader: true});
 });
 
 app.post('/logout', (req, res) => {
@@ -255,26 +259,92 @@ app.get('/chart', (req, res) => {
   const symbol = req.query.symbol || ''; // Get symbol from URL (e.g., /chart?symbol=AAPL)
   res.render('pages/chart', { 
     title: `${symbol || 'Stock'} Chart`, 
-    symbol: symbol // Pass symbol to pre-fill input
+    symbol: symbol, // Pass symbol to pre-fill input
+    showHeader: true
   });
 });
 
 //discover route
 app.get('/discover', (req, res) => {
-  res.render('pages/discover');
+  res.render('pages/discover', {showHeader: true});
 });
 
 app.get('/home', (req, res) => {
-  res.render('pages/home');
+  res.render('pages/home', {showHeader: true});
 });
 
-// Or if using API data:
-app.get('/leaderboard', async (req, res) => {
+//getTopStocks for leaderboard
+async function getTopStocks(limit = 100) {
   try {
-    const leaderboardData = await getLeaderboardData(); // Your data function
-    res.render('pages/leaderboard', { data: leaderboardData });
+    console.log(`Requesting top ${limit} stocks from API...`);
+    const response = await fetch('https://flask-api-nhm2.onrender.com/api/top_stocks?limit=' + limit);
+    
+    if (!response.ok) {
+      throw new Error(`API returned status: ${response.status}`);
+    }
+    
+    const stocks = await response.json();
+    console.log(`Retrieved ${stocks.length} stocks from API`);
+    return stocks;
   } catch (error) {
-    res.status(500).send("Error loading leaderboard");
+    console.error('Error fetching top stocks:', error);
+    
+    // Fallback to database if API fails
+    console.log('Falling back to database for stocks'); //querry database for stock info
+    return await db.any(`
+      SELECT 
+        symbol,
+        company_name AS company,
+        last_price AS last_price,
+        0 AS change
+      FROM stocks
+      ORDER BY last_price DESC
+      LIMIT $1
+    `, [limit]);
+  }
+}
+
+// Updated leaderboard route
+app.get('/leaderboard', auth, async (req, res) => {
+  try {
+    // Explicitly request 100 stocks
+    const stocks = await getTopStocks(100);
+    console.log(`Fetched ${stocks.length} stocks for leaderboard`);
+    
+    if (stocks.length === 0) {
+      console.warn('No stocks returned from API or database!');
+    }
+    
+    // Process and filter stocks - remove any with price of 0
+    const processedStocks = stocks
+      .filter(stock => {
+        const price = parseFloat(stock.last_price || stock.price || 0);
+        return price > 0; // Only include stocks with price > 0
+      })
+      .map((stock, index) => ({
+        rank: index + 1,
+        company: stock.company,
+        symbol: stock.symbol,
+        price: parseFloat(stock.last_price || stock.price || 0),
+        change: parseFloat(stock.change || 0),
+        isTopThree: index < 3,
+        isPositive: parseFloat(stock.change || 0) > 0
+      }));
+
+    res.render('pages/leaderboard', { 
+      stocks: processedStocks,
+      lastUpdated: new Date().toLocaleString(),
+      showHeader: true
+    });
+    
+  } catch (error) {
+    console.error('Leaderboard error:', error);
+    res.render('pages/leaderboard', { 
+      error: 'Failed to load stock data',
+      stocks: [],
+      lastUpdated: 'Never',
+      showHeader: true
+    });
   }
 });
 
@@ -414,64 +484,66 @@ async function getPortfolioData(userId) {
 app.get('/portfolio', auth, async (req, res) => {
   try {
     const portfolioData = await getPortfolioData(req.session.user.user_id);
-    res.render('pages/portfolio', portfolioData);
+    res.render('pages/portfolio', {...portfolioData, showHeader: true});
   } catch (err) {
     console.error('Error retrieving portfolio data:', err);
     res.status(500).send('Internal Server Error');
   }
 });
 
-// news page route using AlphaVantage API
+// news page route using Finnhub API
 app.get('/news', async (req, res) => {
   try {
-    const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
-    const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey=${apiKey}`;
+    const apiKey = process.env.FINNHUB_API_KEY;
+    // Finnhub “general” news endpoint
+    const url = `https://finnhub.io/api/v1/news?category=general&token=${apiKey}`;
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error('Failed to fetch news from Alphavantage.');
+      throw new Error(`Failed to fetch news from Finnhub (${response.status})`);
     }
     const newsData = await response.json();
-    let feed = Array.isArray(newsData.feed) ? newsData.feed : [];
-    
-    // search bar
+    // Finnhub returns an array of { headline, summary, url, datetime, source, image }
+    let feed = Array.isArray(newsData) ? newsData : [];
+
+    // map to your existing shape
+    feed = feed.map(item => ({
+      title: item.headline,
+      summary: item.summary || '',
+      url: item.url,
+      // convert Unix secs → ISO string for Handlebars
+      time_published: new Date(item.datetime * 1000).toLocaleString()
+    }));
+
+    // keyword filter
     const keyword = req.query.keyword ? req.query.keyword.trim() : '';
-    
     if (keyword) {
-      feed = feed.filter(item => {
-        const title = item.title ? item.title.toLowerCase() : "";
-        const summary = item.summary ? item.summary.toLowerCase() : "";
-        return title.includes(keyword.toLowerCase()) || summary.includes(keyword.toLowerCase());
-      });
+      const kw = keyword.toLowerCase();
+      feed = feed.filter(item =>
+        item.title.toLowerCase().includes(kw) ||
+        item.summary.toLowerCase().includes(kw)
+      );
     }
-    
-    // reformat dates and get at most 10 items at a time
+
+    // paginate
     const totalItems = feed.length;
-    let paginatedNews = feed.slice(0, 10).map(item => {
-      if (item.time_published && typeof item.time_published === 'string' && item.time_published.length >= 15) {
-        const isoStr = item.time_published.slice(0, 4) + '-' +
-                       item.time_published.slice(4, 6) + '-' +
-                       item.time_published.slice(6, 8) + 'T' +
-                       item.time_published.slice(9, 11) + ':' +
-                       item.time_published.slice(11, 13) + ':' +
-                       item.time_published.slice(13, 15);
-        item.time_published = new Date(isoStr).toLocaleString();
-      }
-      return item;
-    });
-    // info for load more
-    const nextOffset = 10;
-    const hasMore = nextOffset < totalItems;
-    // record when news was pulled
+    const offset     = parseInt(req.query.offset, 10) || 0;
+    const pageSize   = 10;
+    const paginated  = feed.slice(offset, offset + pageSize);
+    const nextOffset = offset + pageSize;
+    const hasMore    = nextOffset < totalItems;
+
     const pullTimestamp = new Date().toLocaleString();
-    
+
+    // render exactly as before
     res.render('pages/news', {
-      news: { feed: paginatedNews },
+      news:     { feed: paginated },
       pulledAt: pullTimestamp,
       keyword,
       nextOffset,
-      hasMore
+      hasMore,
+      showHeader: true
     });
-    
+
   } catch (error) {
     console.error('Error fetching news:', error);
     res.status(500).send('Internal Server Error');
@@ -482,14 +554,90 @@ app.get('/trade', auth, (req, res) => {
   const symbol = req.query.symbol || '';
   res.render('pages/trade', { 
     symbol,
-    user: req.session.user
+    user: req.session.user,
+    showHeader: true
   });
+});
+
+// settings route
+app.get('/settings', auth, (req, res) => {
+  res.render('pages/settings', {
+    user: req.session.user,
+    showHeader: true
+  });
+});
+
+app.post('/settings', auth, async (req, res) => {
+  const { username, email, password } = req.body;
+  const userId = req.session.user.user_id;
+
+  try {
+    const updates = [];
+    const params  = [];
+
+    if (username && username.trim()) {
+      params.push(username.trim());
+      updates.push(`username = $${params.length}`);
+    }
+    if (email && email.trim()) {
+      params.push(email.trim());
+      updates.push(`email = $${params.length}`);
+    }
+    if (password && password.trim()) {
+      const hash = await bcrypt.hash(password.trim(), 10);
+      params.push(hash);
+      updates.push(`password_hash = $${params.length}`);
+    }
+
+    if (updates.length) {
+      // build query only for provided fields
+      const query = `
+        UPDATE users
+        SET ${updates.join(', ')}
+        WHERE user_id = $${params.length + 1}
+      `;
+      params.push(userId);
+      await db.none(query, params);
+
+      // reflect changes in session
+      if (username && username.trim()) req.session.user.username = username.trim();
+      if (email && email.trim())    req.session.user.email    = email.trim();
+    }
+
+    res.render('pages/settings', {
+      user: req.session.user,
+      success: true,
+      showHeader: true
+    });
+
+  } catch (err) {
+    console.error('Settings update error:', err);
+    res.render('pages/settings', {
+      user: req.session.user,
+      error: 'Failed to save changes. Please try again.',
+      showHeader: true
+    });
+  }
 });
 
 // *****************************************************
 // <!-- Start Server-->
 // *****************************************************
 // starting the server and keeping the connection open to listen for more requests
-app.listen(3000, () => {
-  console.log('Server is running at http://localhost:3000');
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+  // Wake up Flask API server
+  (async () => {
+    try {
+      const res = await fetch(`https://flask-api-nhm2.onrender.com/api/market-status`);
+      if (res.ok) {
+        console.log('✅ Flask API woke up successfully');
+      } else {
+        console.warn(`⚠️ Flask API wake-up ping returned ${res.status} [500 = Market Closed]`);
+      }
+    } catch (err) {
+      console.error('❌ Error pinging Flask API to wake it up:', err.message);
+    }
+  })();
 });
