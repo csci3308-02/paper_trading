@@ -288,7 +288,7 @@ app.get('/home', (req, res) => {
 async function getTopStocks(limit = 100) {
   try {
     console.log(`Requesting top ${limit} stocks from API...`);
-    const response = await fetch('http://api:8000/api/top_stocks?limit=' + limit);
+    const response = await fetch('https://flask-api-nhm2.onrender.com/api/top_stocks?limit=' + limit);
     
     if (!response.ok) {
       throw new Error(`API returned status: ${response.status}`);
