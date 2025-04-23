@@ -1,57 +1,72 @@
-<div id="currentPrice"></div>
-<div id="chartDate" style="margin: 10px 0; font-style: italic;"></div>
-
-<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
-  <!-- Chart -->
-  <div style="flex: 3; min-width: 600px;" id="chartContainer">
-    <canvas id="stockChart" width="1000" height="500"></canvas>
-  </div>
-
-  <!-- Info -->
-  <div
-    id="stockInfoBox"
-    style="flex: 1; min-width: 250px"
-  >
-  </div>
-</div>
-
-<div id="periodButtons" style="margin: 10px 0;">
-  <button data-period="1d" onclick="simulateDay()">1D</button>
-  <button data-period="5d" onclick="simulateChart('5d')">5D</button>
-  <button data-period="1mo" onclick="simulateChart('1mo')">1M</button>
-  <button data-period="3mo" onclick="simulateChart('3mo')">3M</button>
-  <button data-period="6mo" onclick="simulateChart('6mo')">6M</button>
-  <button data-period="ytd" onclick="simulateChart('ytd')">YTD</button>
-  <button data-period="1y" onclick="simulateChart('1y')">1Y</button>
-  <button data-period="5y" onclick="simulateChart('5y')">5Y</button>
-  <button onclick="chart.resetZoom()">Reset Zoom</button>
-</div>
-
-<!-- Scripts -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1"></script>
-<script src="/script.js" defer></script>
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const symbol = urlParams.get('symbol');
-
-    if (symbol) {
-      setTimeout(() => {
-        if (symbol.toLowerCase() === 'portfolio') {
-          simulateChart('1d');
-        } else {
-          if (isMarketClosed()) {
-            simulateChart('1d');
-          } else {
-            startLiveChart();
-          }
-        }
-      }, 300);
-    } else {
-      console.warn("No ticker symbol provided in the URL.");
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Multi-Chart Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { padding-bottom: 2rem; }
+    .chart-item {
+      background: var(--surface);
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      border-radius: 8px;
     }
-  });
-</script>
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: .75rem;
+    }
+    .chart-header h2 { margin: 0; }
+    .chart-controls input { width: 100px; }
+    .chart-controls .btn { margin-left: .25rem; }
+  </style>
+</head>
+<body>
+  <div class="container mt-4">
+    <h1>My Charts</h1>
+    <div id="chartsContainer"></div>
+  </div>
+
+  <!-- Template for one chart instance -->
+  <template id="chartTemplate">
+    <div class="chart-item" data-id="__ID__">
+      <div class="chart-header">
+        <h2 class="chart-title">__SYM__</h2>
+        <div class="d-flex chart-controls">
+          <input type="text" class="form-control form-control-sm chart-search" value="__SYM__">
+          <button class="btn btn-secondary btn-sm chart-search-btn">Search</button>
+          <button class="btn btn-danger btn-sm chart-delete-btn">Delete</button>
+        </div>
+      </div>
+      <div id="currentPrice-__ID__"></div>
+      <div id="chartDate-__ID__" style="font-style:italic; margin:4px 0;"></div>
+      <div class="d-flex flex-wrap gap-3">
+        <div style="flex:3; min-width:250px;">
+          <canvas id="stockChart-__ID__" style="width:100%; height:300px;"></canvas>
+        </div>
+        <div id="stockInfoBox-__ID__" style="flex:1; min-width:200px;"></div>
+      </div>
+      <div id="periodButtons-__ID__" style="margin-top:.5rem;">
+        <button data-period="1d" class="btn btn-sm btn-outline-light">1D</button>
+        <button data-period="5d" class="btn btn-sm btn-outline-light">5D</button>
+        <button data-period="1mo" class="btn btn-sm btn-outline-light">1M</button>
+        <button data-period="3mo" class="btn btn-sm btn-outline-light">3M</button>
+        <button data-period="6mo" class="btn btn-sm btn-outline-light">6M</button>
+        <button data-period="ytd" class="btn btn-sm btn-outline-light">YTD</button>
+        <button data-period="1y" class="btn btn-sm btn-outline-light">1Y</button>
+        <button data-period="5y" class="btn btn-sm btn-outline-light">5Y</button>
+        <button class="btn btn-sm btn-outline-light reset-zoom-btn">Reset Zoom</button>
+      </div>
+    </div>
+  </template>
+
+  <!-- Chart.js + zoom plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1"></script>
+  <script src="/script.js" defer></script>
+</body>
+</html>
