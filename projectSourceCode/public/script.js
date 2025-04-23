@@ -158,8 +158,15 @@ function simulateInstance(id, symbol, period = '1d') {
             maintainAspectRatio: false,
             scales: {
               x: {
-                title: { display: true, text: 'Time' },
-                ticks: { maxTicksLimit: 12 }
+                title: { display: true, text: "Time" },
+                ticks: {
+                  maxTicksLimit: 12,
+                  callback: function(value, index, ticks) {
+                    const maxLength = 11;
+                    let label = this.getLabelForValue(value);
+                  return label.length > maxLength ? label.substring(16, maxLength) : label;
+                  }
+                },
               },
               y: {
                 title: { display: true, text: 'Price (USD)' },

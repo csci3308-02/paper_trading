@@ -121,8 +121,7 @@
             return;
           }
           searchResults.innerHTML = data.map(item => `
-            <a href="/chart?symbol=${encodeURIComponent(item.symbol)}"
-               class="list-group-item list-group-item-action search-result-item">
+            <a href="#" class="list-group-item list-group-item-action search-result-item" data-symbol="${item.symbol}">
               <div class="d-flex justify-content-between">
                 <div><strong>${item.symbol}</strong>
                   <span class="text-muted ms-2">${item.name || item.symbol}</span>
@@ -141,10 +140,29 @@
       }
 
       document.addEventListener('click', e => {
-        if (!e.target.closest('.search-container')) {
-          searchResults.style.display = 'none';
+        const item = e.target.closest('.search-result-item');
+        if (item?.dataset.symbol) {
+            e.preventDefault();
+            const symbol = item.dataset.symbol.toUpperCase();
+            const KEY = 'myChartsSymbols';
+            const arr = JSON.parse(localStorage.getItem(KEY)) || [];
+            if (!arr.includes(symbol)) {
+            arr.push(symbol);
+            localStorage.setItem(KEY, JSON.stringify(arr));
+            }
+            if (window.location.pathname === '/chart') {
+            window.location.reload();
+            } else {
+            window.location.href = '/chart';
+            }
+            return;
         }
-      });
+
+        // hide dropdown if clicked elsewhere
+        if (!e.target.closest('.search-container')) {
+            searchResults.style.display = 'none';
+        }
+        });
     });
   </script>
 
