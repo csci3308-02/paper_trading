@@ -37,6 +37,7 @@ const hbs = handlebars.create({
     formatChange: (change) => parseFloat(change || 0).toFixed(2) + '%'
   }
 });
+//test
 
 app.engine('hbs', hbs.engine);
 app.set('view engine', 'hbs');
@@ -59,7 +60,6 @@ app.use((req, res, next) => {
   res.locals.user = req.session.user;
   next();
 });
-//test
 
 // ----------------------------------   DB CONFIG   ---------------------------------------------------
 
