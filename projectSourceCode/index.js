@@ -186,7 +186,7 @@ app.get('/', (req, res) => {
 
 
 app.get('/login', (req, res) => {
-  res.render('pages/login');
+  res.render('pages/login', {showHeader: false});
 });
 
 
@@ -203,7 +203,7 @@ app.post('/login', async (req, res) => {
 
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
-      return res.render('pages/login', { message: "Incorrect username or password." });
+      return res.render('pages/login', { message: "Incorrect username or password." }, {showHeader: false});
     }
 
     req.session.user = user;
@@ -217,7 +217,7 @@ app.post('/login', async (req, res) => {
 });
 
 app.get('/register', (req, res) => {
-  res.render('pages/register');
+  res.render('pages/register', {showHeader: false});
 });
 
 app.post('/register', async (req, res) => {
@@ -236,7 +236,7 @@ app.post('/register', async (req, res) => {
 });
 
 app.get('/discover', auth, (req, res) => {
-  res.render('pages/discover', { username: req.session.user.username });
+  res.render('pages/discover', { username: req.session.user.username, showHeader: true});
 });
 
 app.post('/logout', (req, res) => {
@@ -270,17 +270,18 @@ app.get('/chart', (req, res) => {
   const symbol = req.query.symbol || ''; // Get symbol from URL (e.g., /chart?symbol=AAPL)
   res.render('pages/chart', { 
     title: `${symbol || 'Stock'} Chart`, 
-    symbol: symbol // Pass symbol to pre-fill input
+    symbol: symbol, // Pass symbol to pre-fill input
+    showHeader: true
   });
 });
 
 //discover route
 app.get('/discover', (req, res) => {
-  res.render('pages/discover');
+  res.render('pages/discover', {showHeader: true});
 });
 
 app.get('/home', (req, res) => {
-  res.render('pages/home');
+  res.render('pages/home', {showHeader: true});
 });
 
 //getTopStocks for leaderboard
@@ -343,7 +344,8 @@ app.get('/leaderboard', auth, async (req, res) => {
 
     res.render('pages/leaderboard', { 
       stocks: processedStocks,
-      lastUpdated: new Date().toLocaleString()
+      lastUpdated: new Date().toLocaleString(),
+      showHeader: true
     });
     
   } catch (error) {
@@ -351,7 +353,8 @@ app.get('/leaderboard', auth, async (req, res) => {
     res.render('pages/leaderboard', { 
       error: 'Failed to load stock data',
       stocks: [],
-      lastUpdated: 'Never'
+      lastUpdated: 'Never',
+      showHeader: true
     });
   }
 });
@@ -492,7 +495,7 @@ async function getPortfolioData(userId) {
 app.get('/portfolio', auth, async (req, res) => {
   try {
     const portfolioData = await getPortfolioData(req.session.user.user_id);
-    res.render('pages/portfolio', portfolioData);
+    res.render('pages/portfolio', {...portfolioData, showHeader: true});
   } catch (err) {
     console.error('Error retrieving portfolio data:', err);
     res.status(500).send('Internal Server Error');
@@ -547,7 +550,8 @@ app.get('/news', async (req, res) => {
       pulledAt: pullTimestamp,
       keyword,
       nextOffset,
-      hasMore
+      hasMore,
+      showHeader: true
     });
     
   } catch (error) {
@@ -560,7 +564,8 @@ app.get('/trade', auth, (req, res) => {
   const symbol = req.query.symbol || '';
   res.render('pages/trade', { 
     symbol,
-    user: req.session.user
+    user: req.session.user,
+    showHeader: true
   });
 });
 
