@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Trade Stocks</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .trade-container {
+            display: flex;
+            gap: 2rem;
+            padding: 1rem;
+        }
+        .trade-form, .holdings-section {
+            flex: 1;
+        }
+        .trade-form {
+            background: var(--surface);
+            padding: 1rem;
+            border-radius: 8px;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .holdings-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .holdings-table th, .holdings-table td {
+            color: var(--text-primary);
+            padding: 0.5rem;
+            border: 1px solid #dee2e6;
+        }
+        .error-message {
+            color: #dc3545;
+            margin-top: 0.5rem;
+        }
+        .success-message {
+            color: #198754;
+            margin-top: 0.5rem;
+        }
+        .balance-info {
+            margin-bottom: 1rem;
+            padding: 0.5rem;
+            background: var(--background);
+            border-radius: 4px;
+        }
+        /* BEGIN ADDITION: Estimated Price styling */
+        .estimated-group {
+            margin-top: 1rem;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        #estimatedPrice {
+            margin-top: 0.25rem;
+            color: var(--text-primary);
+        }
+        /* END ADDITION */
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>Trade Stocks</h1>
+        
+        <div class="balance-info">
+            <strong>Current Balance:</strong> $<span id="userBalance">{{user.balance}}</span>
+        </div>
+
+        <div class="trade-container">
+            <div class="trade-form">
+                <h2>Place Trade</h2>
+                <form id="tradeForm">
+                    <div class="form-group">
+                        <label for="symbol">Stock Symbol:</label>
+                        <input type="text" id="symbol" name="symbol" class="form-control" required 
+                               value="{{symbol}}" {{#if symbol}}readonly{{/if}}>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="quantity">Quantity:</label>
+                        <input type="number" id="quantity" name="quantity" class="form-control" 
+                               min="0.01" step="0.01" required>
+                        <small class="color: var(--text-primary);">Min: 0.01 shares</small>
+                    </div>
+                    
+                    <!-- BEGIN ADDITION: Estimated Price display -->
+                    <div class="form-group estimated-group">
+                        <label>Estimated Price:</label>
+                        <div id="estimatedPrice">—</div>
+                    </div>
+                    <!-- END ADDITION -->
+
+                    <div class="form-group">
+                        <label for="tradeType">Trade Type:</label>
+                        <select id="tradeType" name="tradeType" class="form-control" required>
+                            <option value="BUY">Buy</option>
+                            <option value="SELL">Sell</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <button type="submit" class="btn btn-primary">Place Order</button>
+                    </div>
+                    
+                    <div id="tradeMessage"></div>
+                </form>
+            </div>
+            
+            <div class="holdings-section">
+                <h2>Your Holdings</h2>
+                <table class="holdings-table">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Company</th>
+                            <th>Quantity</th>
+                            <th>Current Price</th>
+                            <th>Total Value</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="holdingsTableBody">
+                        <!-- Holdings will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Initialize user data from server -->
+    <script>
+        // Debug: Log user data from server
+        console.log('User data from server:', {
+            user_id: "{{user.user_id}}",
+            balance: "{{user.balance}}",
+            username: "{{user.username}}"
+        });
+
+        const user = {
+            user_id: "{{user.user_id}}",
+            balance: parseFloat("{{user.balance}}") || 0,
+            username: "{{user.username}}"
+        };
+    </script>
+
+    <script>
+        // Fetch the current price for a symbol
+        async function fetchCurrentPrice(symbol) {
+            try {
+                const res = await fetch(`/api/price/${symbol}`);
+                if (!res.ok) throw new Error('Price fetch failed');
+                const data = await res.json();
+                return parseFloat(data.price);
+            } catch (err) {
+                console.error('Error fetching price:', err);
+                return null;
+            }
+        }
+
+        // Update the Estimated Price display
+        async function updateEstimatedPrice() {
+            const symbol = document.getElementById('symbol').value.trim().toUpperCase();
+            const qty    = parseFloat(document.getElementById('quantity').value);
+            const priceEl = document.getElementById('estimatedPrice');
+
+            if (!symbol || isNaN(qty) || qty <= 0) {
+                priceEl.textContent = '—';
+                return;
+            }
+            const currentPrice = await fetchCurrentPrice(symbol);
+            if (currentPrice === null) {
+                priceEl.textContent = 'N/A';
+                return;
+            }
+            const amount = currentPrice * qty;
+            priceEl.textContent = `$${amount.toFixed(2)}`;
+        }
+
+        // Hook events to update estimate
+        document.getElementById('symbol').addEventListener('change', updateEstimatedPrice);
+        document.getElementById('quantity').addEventListener('input', updateEstimatedPrice);
+        document.getElementById('tradeType').addEventListener('change', updateEstimatedPrice);
+    </script>
+
+    <script>
+        // Function to load user's holdings
+        async function loadHoldings() {
+            console.log('Loading holdings for user:', user.user_id);
+            try {
+                const response = await fetch(`/api/holdings/${user.user_id}`);
+                console.log('Holdings response:', response.status);
+                const holdings = await response.json();
+                console.log('Holdings data:', holdings);
+                
+                const tableBody = document.getElementById('holdingsTableBody');
+                tableBody.innerHTML = '';
+                
+                holdings.forEach(holding => {
+                    const row = document.createElement('tr');
+                    const totalValue = holding.quantity * holding.last_price;
+                    
+                    row.innerHTML = `
+                        <td>${holding.symbol}</td>
+                        <td>${holding.company_name}</td>
+                        <td>${parseFloat(holding.quantity).toFixed(4)}</td>
+                        <td>$${parseFloat(holding.last_price).toFixed(2)}</td>
+                        <td>$${totalValue.toFixed(2)}</td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" 
+                                    onclick="prefillSell('${holding.symbol}', ${holding.quantity})">
+                                Sell
+                            </button>
+                        </td>
+                    `;
+                    
+                    tableBody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Error loading holdings:', error);
+                document.getElementById('holdingsTableBody').innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center text-danger">
+                            Error loading holdings: ${error.message}
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        // Function to prefill sell order
+        function prefillSell(symbol, quantity) {
+            document.getElementById('symbol').value = symbol;
+            document.getElementById('quantity').value = quantity;
+            document.getElementById('tradeType').value = 'SELL';
+            document.getElementById('symbol').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Function to handle trade submission
+        document.getElementById('tradeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            console.log('Form submitted');
+            
+            const messageDiv = document.getElementById('tradeMessage');
+            messageDiv.innerHTML = '';
+            
+            const formData = {
+                user_id: user.user_id,
+                symbol: document.getElementById('symbol').value.toUpperCase(),
+                quantity: parseFloat(document.getElementById('quantity').value),
+                trade_type: document.getElementById('tradeType').value
+            };
+            
+            console.log('Submitting trade:', formData);
+            
+            try {
+                const response = await fetch('/api/trade', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(formData)
+                });
+                
+                console.log('Trade response status:', response.status);
+                const result = await response.json();
+                console.log('Trade response:', result);
+                
+                if (response.ok) {
+                    messageDiv.innerHTML = `
+                        <div class="success-message">
+                            ${result.message}<br>
+                            Price: $${result.price}<br>
+                            Total: $${result.total}
+                        </div>
+                    `;
+                    
+                    // Refresh holdings and user balance
+                    await loadHoldings();
+                    
+                    // Update user balance
+                    const balanceResponse = await fetch(`/api/user/${user.user_id}/balance`);
+                    console.log('Balance response status:', balanceResponse.status);
+                    const balanceData = await balanceResponse.json();
+                    console.log('New balance:', balanceData);
+                    
+                    document.getElementById('userBalance').textContent = 
+                        parseFloat(balanceData.balance).toFixed(2);
+                    
+                    // Update local user object
+                    user.balance = parseFloat(balanceData.balance);
+                        
+                    // Reset form if not a pre-filled symbol
+                    if (!document.getElementById('symbol').readOnly) {
+                        document.getElementById('symbol').value = '';
+                    }
+                    document.getElementById('quantity').value = '';
+                    // Reset estimate after trade
+                    updateEstimatedPrice();
+                } else {
+                    messageDiv.innerHTML = `
+                        <div class="error-message">
+                            ${result.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Trade error:', error);
+                messageDiv.innerHTML = `
+                    <div class="error-message">
+                        An error occurred while processing your trade: ${error.message}
+                    </div>
+                `;
+            }
+        });
+
+        // Load holdings when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Page loaded, initializing...');
+            loadHoldings();
+        });
+    </script>
+</body>
+</html>

@@ -1,313 +1,232 @@
-let chart;
-let interval;
-let historicalData = [];
+// ==== Persistence via localStorage ====
+const STORAGE_KEY = 'myChartsSymbols';
 
-function displayStockInfo(data) {
-  const infoBox = document.getElementById("stockInfoBox");
-  if (!data) return infoBox.innerHTML = '';
-
-  infoBox.innerHTML = `
-    <h3>${data.name} (${data.ticker})</h3>
-    <ul>
-      <li><strong>Current Price:</strong> $${data.price?.toFixed(2) || 'N/A'}</li>
-      <li><strong>Previous Close:</strong> $${data.previousClose?.toFixed(2) || 'N/A'}</li>
-      <li><strong>Open:</strong> $${data.open?.toFixed(2) || 'N/A'}</li>
-      <li><strong>High today:</strong> $${data.dayHigh?.toFixed(2) || 'N/A'}</li>
-      <li><strong>Low today:</strong> $${data.dayLow?.toFixed(2) || 'N/A'}</li>
-      <li><strong>52 Week High:</strong> $${data.yearHigh?.toFixed(2) || 'N/A'}</li>
-      <li><strong>52 Week Low:</strong> $${data.yearLow?.toFixed(2) || 'N/A'}</li>
-      <li><strong>Day Range:</strong> $${(data.dayHigh - data.dayLow).toFixed(2) || 'N/A'}</li>
-      <li><strong>52 Week Range:</strong> $${(data.yearHigh - data.yearLow).toFixed(2) || 'N/A'}</li>
-      <li><strong>Volume:</strong> ${data.volume?.toLocaleString() || 'N/A'}</li>
-      <li><strong>Market Cap:</strong> $${formatMarketCap(data.marketCap) || 'N/A'}</li>
-    </ul>
-  `;
-}
-
-function formatMarketCap(num) {
-  if (!num || isNaN(num)) return "N/A";
-  if (num >= 1e12) return (num / 1e12).toFixed(2) + "T";
-  if (num >= 1e9) return (num / 1e9).toFixed(2) + "B";
-  if (num >= 1e6) return (num / 1e6).toFixed(2) + "M";
-  if (num >= 1e3) return (num / 1e3).toFixed(2) + "K";
-  return num.toString();
-}
-
-function simulateChart(period) {
-  if (period == undefined){
-    period = '1d';
+function getSymbols() {
+  let arr = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  if (!arr.length) {
+    arr = ['AAPL'];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
   }
-
-  clearInterval(interval);
-  historicalData = [];
-
-  const ticker = getTicker();
-  if (!ticker) return;
-
-  //const period = getValue("periodSelect");
-  //const intervalVal = getValue("intervalSelect");
-
-  setText("currentPrice", `Fetching history for ${ticker}...`);
-  
-  //fetch(`/api/history?ticker=${ticker}&period=${period}&interval=${intervalVal}`)
-  fetch(`/api/history?ticker=${ticker}&period=${period}`)
-    .then(res => res.json())
-    .then(data => {
-      if (!data || data.length === 0) throw new Error("No data returned");
-
-      historicalData = data;
-
-      const labels = data.map(p => p.time);
-      const prices = data.map(p => p.price);
-      const [min, max] = getMinMax(prices);
-      const buffer = (max - min) * 0.03;
-
-      const fullDate = new Date(data[0].time).toLocaleDateString();
-      setText("chartDate", `Data for: ${fullDate}`);
-
-      createChart(ticker, labels, prices, min - buffer, max + buffer);
-
-      const latest = data.at(-1);
-      setText("currentPrice", `${ticker}: $${latest.price.toFixed(2)} @ ${formatTime(latest.time)}`);
-
-      fetch(`/api/stock?ticker=${ticker}&live=true`)
-        .then(res => res.json())
-        .then(data => displayStockInfo(data[0]))
-        .catch(err => console.error("Info fetch failed", err));
-    })
-    .catch(err => setText("currentPrice", `Error: ${err.message}`));
+  return arr;
 }
-/*function startLiveChart() { this version of startLiveChart tries to pull the whole of todays data as well so the live chart is not so small and narrow
-  if (isMarketClosed()) {
-    alert("Market is closed. Please try again during market hours.");
-    return;
+
+function saveSymbols(arr) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+}
+
+// ==== DOM refs & template ====
+const container    = document.getElementById('chartsContainer');
+const templateHTML = document.getElementById('chartTemplate').innerHTML;
+const chartsMap    = new Map();
+
+// ==== Initialize on page load + Add-Chart wiring ====
+document.addEventListener('DOMContentLoaded', () => {
+  initDashboard();
+  const addBtn = document.getElementById('addChartBtn');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      const arr = getSymbols();
+      arr.push('');
+      saveSymbols(arr);
+      initDashboard();
+    });
   }
+});
 
-  clearInterval(interval);
-  historicalData = [];
+function initDashboard() {
+  container.innerHTML = '';
+  chartsMap.clear();
+  getSymbols().forEach((sym, idx) => createInstance(sym, idx));
+}
 
-  const ticker = getTicker();
-  if (!ticker) return;
+// ==== Create one chart instance ====
+function createInstance(symbol, id) {
+  const html = templateHTML
+    .replace(/__ID__/g, id)
+    .replace(/__SYM__/g, symbol);
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = html;
+  const el = wrapper.firstElementChild;
+  container.appendChild(el);
 
-  setText("currentPrice", `Starting live updates for ${ticker}...`);
-  setText("chartDate", "Live Mode");
+  // search button
+  el.querySelector('.chart-search-btn').onclick = () => {
+    const input = el.querySelector('.chart-search');
+    const newSym = input.value.trim().toUpperCase();
+    if (!newSym) return;
+    const arr = getSymbols();
+    arr[id] = newSym;
+    saveSymbols(arr);
+    el.querySelector('.chart-title').textContent = newSym;
+    simulateInstance(id, newSym);
+  };
 
-  const ctx = document.getElementById("stockChart").getContext("2d");
-  if (chart) chart.destroy();
+  // delete button
+  el.querySelector('.chart-delete-btn').onclick = () => {
+    let arr = getSymbols();
+    if (arr.length <= 1) return;  // never delete last chart
+    arr.splice(id, 1);
+    saveSymbols(arr);
+    initDashboard();
+  };
 
-
-  //get todays data
-  fetch(`/api/history?ticker=${ticker}&period=1d&interval=1m`)
-    .then(res => res.json())
-    .then(data => {
-      if (!data || data.length === 0) throw new Error("No data returned");
-
-      const labels = data.map(p => p.time);
-      const prices = data.map(p => p.price);
-      const [min, max] = getMinMax(prices);
-      const buffer = (max - min) * 0.03;
-
-      chart = new Chart(ctx, getChartConfig(ticker, labels, prices, min - buffer, max + buffer));
-      historicalData = prices;
-
-      const latest = data.at(-1);
-      setText("currentPrice", `${ticker}: $${latest.price.toFixed(2)} @ ${formatTime(latest.time)}`);
-    })
-    .catch(err => {
-      setText("currentPrice", `Error: ${err.message}`);
+  // period buttons
+  el.querySelectorAll(`#periodButtons-${id} button[data-period]`)
+    .forEach(btn => btn.onclick = () => {
+      simulateInstance(id, getSymbols()[id], btn.dataset.period);
     });
 
-  // Start live updates every second
-  interval = setInterval(() => {
-    fetch(`/api/stock?ticker=${ticker}&live=true`)
-      .then(res => res.json())
-      .then(data => {
-        const stock = data[0];
-        if (!stock || stock.price == null) return;
+  // reset zoom
+  el.querySelector('.reset-zoom-btn').onclick = () => {
+    const ch = chartsMap.get(id);
+    if (ch) ch.resetZoom();
+  };
 
-        const now = new Date();
-        const price = parseFloat(stock.price);
+  // first render
+  simulateInstance(id, symbol);
+}
 
-        chart.data.labels.push(now.toISOString());
-        chart.data.datasets[0].data.push(price);
+// ==== Per-chart logic with zoom & dynamic color ====
+function simulateInstance(id, symbol, period = '1d') {
+  const priceEl = document.getElementById(`currentPrice-${id}`);
+  const dateEl  = document.getElementById(`chartDate-${id}`);
+  const infoEl  = document.getElementById(`stockInfoBox-${id}`);
+  const ctx     = document.getElementById(`stockChart-${id}`).getContext('2d');
 
-        const [min, max] = getMinMax(chart.data.datasets[0].data);
-        const buffer = (max - min) * 0.03;
-        chart.options.scales.y.min = min - buffer;
-        chart.options.scales.y.max = max + buffer;
+  // highlight active period
+  document
+    .querySelectorAll(`.chart-item[data-id="${id}"] .active-period`)
+    .forEach(b => b.classList.remove('active-period'));
+  const actBtn = document.querySelector(
+    `.chart-item[data-id="${id}"] button[data-period="${period}"]`
+  );
+  if (actBtn) actBtn.classList.add('active-period');
 
-        chart.update();
-
-        setText("currentPrice", `${stock.name} (${stock.ticker}): $${price.toFixed(2)} @ ${formatTime(now)}`);
-      });
-  }, 1000);
-}*/
-function startLiveChart() {
-  if (isMarketClosed()) {
-    alert("Market is closed. Please try again during market hours.");
-    return;
-  }
-
-  clearInterval(interval);
-  historicalData = [];
-
-  const ticker = getTicker();
-  if (!ticker) return;
-
-  setText("currentPrice", `Starting live updates for ${ticker}...`);
-  setText("chartDate", "Live Mode");
-
-  const ctx = document.getElementById("stockChart").getContext("2d");
-  if (chart) chart.destroy();
-
-  chart = new Chart(ctx, getChartConfig(ticker, [], [], null, null));
-
-  interval = setInterval(() => {
-    fetch(`/api/stock?ticker=${ticker}&live=true`)
-    .then(res => res.json())
+  // fetch historical data
+  fetch(`/api/history?ticker=${symbol}&period=${period}`)
+    .then(r => r.json())
     .then(data => {
-    displayStockInfo(data[0]);
-    const stock = data[0];
-    if (!stock || stock.price == null) return;
+      if (!Array.isArray(data) || data.length === 0) {
+        throw new Error('No history data');
+      }
+      const labels = data.map(p => p.time);
+      const prices = data.map(p => p.price);
 
-    const now = new Date();
-    const price = parseFloat(stock.price);
+      // determine color by period performance
+      const firstPrice = prices[0];
+      const lastPrice  = prices[prices.length - 1];
+      const trendColor = (lastPrice >= firstPrice) ? 'lime' : 'red';
 
-    if (!chart) {
-      const ctx = document.getElementById("stockChart").getContext("2d");
-      chart = new Chart(ctx, getChartConfig(ticker, [now.toISOString()], [price], price - 1, price + 1));
-    } else {
-      chart.data.labels.push(now.toISOString());
-      chart.data.datasets[0].data.push(price);
+      const [min, max] = [Math.min(...prices), Math.max(...prices)];
+      const buf = (max - min) * 0.03;
+      dateEl.textContent = `Data for: ${new Date(data[0].time).toLocaleDateString()}`;
 
-      const [min, max] = getMinMax(chart.data.datasets[0].data);
-      const buffer = (max - min) * 0.03;
-      chart.options.scales.y.min = min - buffer;
-      chart.options.scales.y.max = max + buffer;
+      // fetch live stock details
+      fetch(`/api/stock?ticker=${symbol}&live=true`)
+        .then(r => r.json())
+        .then(arr => {
+          const s = arr[0] || {};
+          priceEl.innerHTML = `
+            <div style="font-size:1.5rem; font-weight:bold;">
+              ${s.name} (${s.ticker})
+            </div>
+            <div style="font-size:1.25rem; color:${trendColor};">
+              $${(lastPrice).toFixed(2)}
+            </div>`;
+          displayStockInfoInstance(id, s);
+        })
+        .catch(() => {
+          priceEl.textContent = 'Info unavailable';
+          infoEl.innerHTML = '';
+        });
 
-      chart.update();
-    }
-
-    setText("currentPrice", `${stock.name} (${stock.ticker}): $${price.toFixed(2)} @ ${formatTime(now)}`);
-  });
-
-  }, 1000);
-}
-
-function isMarketClosed() {
-  const now = new Date();
-
-  // Convert to EST
-  const now_est = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
-
-  const day = now_est.getDay();
-  const hour = now_est.getHours();
-  const minute = now_est.getMinutes();
-
-  //market is open mon-fri, 930am to 4pm *EST*
-  const isWeekend = day === 0 || day === 6;
-  const beforeOpen = hour < 9 || (hour === 9 && minute < 30);
-  const afterClose = hour > 16 || (hour === 16 && minute > 0);
-
-  return isWeekend || beforeOpen || afterClose;
-}
-
-function getTicker() {
-  // First try to get the symbol from URL params
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlSymbol = urlParams.get('symbol');
-
-  // If no URL symbol, fall back to input field
-  const inputSymbol = document.getElementById("tickerInput").value.trim().toUpperCase();
-  
-  const finalSymbol = urlSymbol || inputSymbol;
-  
-  if (!finalSymbol) {
-    alert("Please enter a valid ticker symbol.");
-    return null;
-  }
-
-  // Update the input field if it came from URL
-  if (urlSymbol && !inputSymbol) {
-    document.getElementById("tickerInput").value = urlSymbol;
-  }
-
-  return finalSymbol;
-}
-
-function getValue(id) {
-  return document.getElementById(id).value;
-}
-
-function setText(id, text) {
-  document.getElementById(id).innerHTML = `<strong>${text}</strong>`;
-}
-
-function formatTime(ts) {
-  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
-function getMinMax(data) {
-  return [Math.min(...data), Math.max(...data)];
-}
-
-function createChart(ticker, labels, data, yMin, yMax) {
-  const ctx = document.getElementById("stockChart").getContext("2d");
-  if (chart) chart.destroy();
-  chart = new Chart(ctx, getChartConfig(ticker, labels, data, yMin, yMax));
-}
-
-function getChartConfig(ticker, labels, data, yMin, yMax) {
-  return {
-    type: "line",
-    data: {
-      labels,
-      datasets: [{
-        label: ticker,
-        data,
-        borderWidth: 1.5,
-        fill: false,
-        tension: 0.2,
-        pointRadius: 0.5,
-        pointHoverRadius: 4
-      }]
-    },
-    options: {
-      animation: false,
-      animations: {
-        tension: { duration: 0 },
-        x: { duration: 0 },
-        y: { duration: 0 }
-      },
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          title: { display: true, text: "Time" },
-          ticks: {
-            maxTicksLimit: 20,
-            callback: (value) => {
-              const fullTime = value;
-              return new Date(fullTime).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit'
-              });
+      // render or update chart with dynamic color
+      if (chartsMap.has(id)) {
+        const ch = chartsMap.get(id);
+        ch.data.labels = labels;
+        ch.data.datasets[0].data = prices;
+        ch.data.datasets[0].borderColor = trendColor;
+        ch.options.scales.y.min = min - buf;
+        ch.options.scales.y.max = max + buf;
+        ch.update();
+      } else {
+        const cfg = {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [{
+              label: symbol,
+              data: prices,
+              borderColor: trendColor,
+              borderWidth: 1.5,
+              fill: false,
+              pointRadius: 0.5,
+              pointHoverRadius: 4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: {
+                title: { display: true, text: "Time" },
+                ticks: {
+                  maxTicksLimit: 12,
+                  callback: function(value, index, ticks) {
+                    const maxLength = 11;
+                    let label = this.getLabelForValue(value);
+                  return label.length > maxLength ? label.substring(16, maxLength) : label;
+                  }
+                },
+              },
+              y: {
+                title: { display: true, text: 'Price (USD)' },
+                min: min - buf,
+                max: max + buf
+              }
+            },
+            plugins: {
+              zoom: {
+                pan: { enabled: true, mode: 'x' },
+                zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }
+              }
             }
           }
-        },
-        y: {
-          min: yMin,
-          max: yMax,
-          title: { display: true, text: "Price (USD)" }
-        }
-      },
-      plugins: {
-        legend: { display: true },
-        zoom: {
-          pan: { enabled: true, mode: 'x', modifierKey: null },
-          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }
-        }
+        };
+        const ch = new Chart(ctx, cfg);
+        chartsMap.set(id, ch);
       }
-    }
-  };
+    })
+    .catch(e => {
+      priceEl.textContent = `Error: ${e.message}`;
+    });
+}
+
+// ==== Side panel renderer ====
+function displayStockInfoInstance(id, data) {
+  const box = document.getElementById(`stockInfoBox-${id}`);
+  if (!data) { box.innerHTML = ''; return; }
+  box.innerHTML = `
+    <h4>${data.name} (${data.ticker})</h4>
+    <ul>
+      <li><strong>Current Price:</strong> $${(data.price || 0).toFixed(2)}</li>
+      <li><strong>Previous Close:</strong> $${(data.previousClose || 0).toFixed(2)}</li>
+      <li><strong>Open:</strong> $${(data.open || 0).toFixed(2)}</li>
+      <li><strong>High Today:</strong> $${(data.dayHigh || 0).toFixed(2)}</li>
+      <li><strong>Low Today:</strong> $${(data.dayLow || 0).toFixed(2)}</li>
+      <li><strong>52W High:</strong> $${(data.yearHigh || 0).toFixed(2)}</li>
+      <li><strong>52W Low:</strong> $${(data.yearLow || 0).toFixed(2)}</li>
+      <li><strong>Volume:</strong> ${(data.volume || 0).toLocaleString()}</li>
+      <li><strong>Market Cap:</strong> ${formatMarketCap(data.marketCap)}</li>
+    </ul>`;
+}
+
+// ==== Market cap helper ====
+function formatMarketCap(n) {
+  if (!n || isNaN(n)) return 'N/A';
+  if (n >= 1e12) return (n / 1e12).toFixed(2) + 'T';
+  if (n >= 1e9)  return (n / 1e9).toFixed(2) + 'B';
+  if (n >= 1e6)  return (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3)  return (n / 1e3).toFixed(2) + 'K';
+  return n.toString();
 }

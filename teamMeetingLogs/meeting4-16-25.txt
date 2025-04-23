@@ -1,0 +1,5 @@
+- add consistent styling 
+- one person on presentation slides (15 mins total)(5 mins demo/video, rest on slides)
+- coloring for chart styling green/red/black
+- integration for everyone after Buy/Sell
+- Josh take lead on UI/Styling 

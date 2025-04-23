@@ -49,3 +49,6 @@ Thumbs.db
 
 # Docker
 .docker/
+
+# Init external DB
+projectSourceCode/init_db.sh

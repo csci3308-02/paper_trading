@@ -4,13 +4,42 @@
   <meta charset="UTF-8">
   <title>{{user.username}}'s Portfolio</title>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    /* ensure stats and content stay above the footer */
+    body {
+      padding-bottom: 6rem;
+    }
+    /* box styling for each section */
+    .section-box {
+      background: var(--surface);
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      border-radius: 8px;
+    }
+    /* scrollable transactions list */
+    #transactions {
+      max-height: 40vh;
+      overflow-y: auto;
+    }
+    /* keep tables full width */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 0;
+    }
+    table th, table td {
+      padding: 0.5rem;
+      border: 1px solid #dee2e6;
+      color: var(--text-primary);
+    }
+  </style>
 </head>
 <body>
   <header>
     <h1>{{user.username}}'s Portfolio</h1>
   </header>
 
-  <section id="user-info">
+  <section id="user-info" class="section-box">
     <h2>Account Information</h2>
     <p><strong>Email:</strong> {{user.email}}</p>
     <p><strong>Balance:</strong> ${{balance}}</p>
@@ -18,7 +47,7 @@
     <p><strong>Account Created:</strong> {{user.created_at}}</p>
   </section>
 
-  <section id="holdings">
+  <section id="holdings" class="section-box">
     <h2>Stocks Held</h2>
     {{#if holdings.length}}
       <table>
@@ -46,7 +75,7 @@
     {{/if}}
   </section>
 
-  <section id="transactions">
+  <section id="transactions" class="section-box">
     <h2>Transaction History</h2>
     {{#if transactions.length}}
       <table>
@@ -76,7 +105,7 @@
     {{/if}}
   </section>
 
-  <section id="statistics">
+  <section id="statistics" class="section-box">
     <h2>Performance Statistics</h2>
     <ul>
       <li><strong>Total Return:</strong> ${{statistics.totalReturn}}</li>

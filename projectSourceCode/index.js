@@ -8,7 +8,7 @@ const session = require('express-session');
 const bodyParser = require('body-parser');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const bcrypt = require('bcrypt');
-
+const fetch1 = require('node-fetch');
 const app = express();
 
 // ----------------------------------   STATIC FILES   ----------------------------------------------
@@ -30,7 +30,6 @@ app.set('views', path.join(__dirname, 'views'));
 
 // ----------------------------------   MIDDLEWARE   --------------------------------------------------
 
-app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use(
@@ -50,8 +49,8 @@ app.use((req, res, next) => {
 // ----------------------------------   DB CONFIG   ---------------------------------------------------
 
 const dbConfig = {
-  host: 'db',
-  port: 5432,
+  host: process.env.PGHOST || process.env.POSTGRES_HOST || 'localhost',
+  port: process.env.PGPORT ? parseInt(process.env.PGPORT, 10) : 5432,
   database: process.env.POSTGRES_DB,
   user: process.env.POSTGRES_USER,
   password: process.env.POSTGRES_PASSWORD,
@@ -69,7 +68,6 @@ db.connect()
   .catch(error => {
     console.log('ERROR', error.message || error);
   });
-
 
 // ----------------------------------   API ENDPOINT TO ALPHAVANTAGE FOR LOADMORE   ----------------------------------
 
@@ -119,11 +117,30 @@ app.get('/api/news', async (req, res) => {
   }
 });
 
+// ----------------------------------   API ENDPOINT FOR SEARCH   ----------------------------------
+
+app.use('/api/search', createProxyMiddleware({
+  target: 'http://api:8000',
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api/search': '/api/search' // Ensure path is preserved
+  },
+  onProxyReq: (proxyReq, req, res) => {
+    console.log(`Proxying request: ${req.originalUrl}`) // Debug logging
+  }
+}));
+
 // ----------------------------------   API PROXY TO PYTHON SERVER   ----------------------------------
 
 app.use('/api', createProxyMiddleware({
   target: 'http://api:8000',
-  changeOrigin: true
+  changeOrigin: true,
+  onProxyReq: (proxyReq, req, res) => {
+    // Forward the user ID from session to the Python API
+    if (req.session.user) {
+      proxyReq.setHeader('X-User-ID', req.session.user.user_id);
+    }
+  }
 }));
 
 // ----------------------------------   ROUTES   ------------------------------------------------------
@@ -179,7 +196,7 @@ app.post('/login', async (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).render('pages/login', { message: "Something went wrong. Please try again later." });
+    res.status(500).render('pages/login', { message: "Account does not exist. Please register below!" });
   }
 });
 
@@ -192,8 +209,8 @@ app.post('/register', async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     await db.none(
-      "INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3)",
-      [username, email, hashedPassword]
+      "INSERT INTO users (username, email, password_hash, balance) VALUES ($1, $2, $3, $4)",
+      [username, email, hashedPassword, 10000.00]
     );
     res.redirect('/login');
   } catch (error) {
@@ -202,39 +219,8 @@ app.post('/register', async (req, res) => {
   }
 });
 
-app.use('/api/search', createProxyMiddleware({
-  target: 'http://api:8000',
-  changeOrigin: true,
-  pathRewrite: {
-    '^/api/search': '/api/search' // Ensure path is preserved
-  },
-  onProxyReq: (proxyReq, req, res) => {
-    console.log(`Proxying request: ${req.originalUrl}`) // Debug logging
-  }
-}));
-
-
-
-// API route for Order History Page
-app.get('/orderhistory', async (req, res) => {
-  if (!req.session.user) {
-      return res.redirect('/login'); // Redirect if not logged in !! create login API
-  }
-
-  try {
-      const orders = await db.any(
-          'SELECT stock_name, symbol, price, quantity, type, created_at FROM orders WHERE user_id = $1 ORDER BY created_at DESC', // sample query can change depending on info needed
-          [req.session.user.id]
-      );
-      res.render('pages/orderhistory', { orders });
-  } catch (error) {
-      console.error('Error fetching order history:', error);
-      res.status(500).send('Internal Server Error');
-  }
-});
-
 app.get('/discover', auth, (req, res) => {
-  res.render('pages/discover'); 
+  res.render('pages/discover', { username: req.session.user.username });
 });
 
 app.post('/logout', (req, res) => {
@@ -294,28 +280,44 @@ app.get('/leaderboard', async (req, res) => {
 // portfolio calculator/controller
 async function getPortfolioData(userId) {
   try {
-    // Retrieve user information.
+    // 1) Get user info
     const userResult = await db.one(
-      'SELECT user_id, username, email, balance, created_at FROM users WHERE user_id = $1',
+      `SELECT user_id, username, email, balance, created_at
+       FROM users
+       WHERE user_id = $1`,
       [userId]
     );
     const user = userResult;
 
-    // Retrieve holdings and join with stock details.
+    // 2) Get holdings + live prices
     const holdingsResult = await db.any(
-      `SELECT h.quantity, s.symbol, s.company_name, s.last_price 
-       FROM holdings h 
+      `SELECT h.quantity, s.symbol, s.company_name, s.last_price
+       FROM holdings h
        JOIN stocks s ON h.stock_id = s.stock_id
        WHERE h.user_id = $1`,
       [userId]
     );
+    // Refresh live price for each holding
+    for (let holding of holdingsResult) {
+      try {
+        // call your live‐price endpoint:
+        const res = await fetch(`http://api:8000/api/price/${holding.symbol}`);
+        if (res.ok) {
+          const { price } = await res.json();
+          holding.last_price = price;
+        }
+      } catch (err) {
+        console.error(`Failed live price update for ${holding.symbol}:`, err);
+      }
+    }
 
-    // Calculate the total value of holdings.
-    const holdingsValue = holdingsResult.reduce((acc, holding) => {
-      return acc + parseFloat(holding.quantity) * parseFloat(holding.last_price);
-    }, 0);
+    // 3) Compute total value of current holdings
+    const holdingsValue = holdingsResult.reduce(
+      (sum, h) => sum + parseFloat(h.quantity) * parseFloat(h.last_price),
+      0
+    );
 
-    // Retrieve transactions for display (ordered descending).
+    // 4) Pull all transactions (for display) and also ordered‐asc for FIFO stats
     const transactionsDisplay = await db.any(
       `SELECT t.transaction_date, t.transaction_type, t.quantity, t.price, s.symbol
        FROM transactions t
@@ -324,8 +326,6 @@ async function getPortfolioData(userId) {
        ORDER BY t.transaction_date DESC`,
       [userId]
     );
-
-    // Retrieve transactions for statistics calculations (ordered ascending for FIFO matching).
     const transactionsStats = await db.any(
       `SELECT t.transaction_date, t.transaction_type, t.quantity, t.price, s.symbol
        FROM transactions t
@@ -335,10 +335,7 @@ async function getPortfolioData(userId) {
       [userId]
     );
 
-    // Compute total return: current balance + current holdings value minus initial investment.
-    const totalReturn = parseFloat(user.balance) + holdingsValue - 10000;
-
-    // --- Compute trade-level statistics using FIFO matching ---
+    // 5) Compute realized profit & FIFO matching
     let stats = {
       totalProfit: 0,
       totalTrades: 0,
@@ -346,61 +343,48 @@ async function getPortfolioData(userId) {
       biggestWin: -Infinity,
       biggestLoss: Infinity
     };
+    const buyQueues = {};
 
-    // Create a buy queue for each stock symbol to implement FIFO matching.
-    let buyQueues = {};
+    for (const tx of transactionsStats) {
+      const sym = tx.symbol;
+      const qty = parseFloat(tx.quantity);
+      const prc = parseFloat(tx.price);
+      if (!buyQueues[sym]) buyQueues[sym] = [];
 
-    for (let transaction of transactionsStats) {
-      const symbol = transaction.symbol;
-      const type = transaction.transaction_type;
-      const quantity = parseFloat(transaction.quantity);
-      const price = parseFloat(transaction.price);
-
-      // Initialize queue for the stock if it doesn't exist.
-      if (!buyQueues[symbol]) {
-        buyQueues[symbol] = [];
-      }
-
-      if (type === 'BUY') {
-        // Add buy transaction to the corresponding queue.
-        buyQueues[symbol].push({ quantity, price });
-      } else if (type === 'SELL') {
-        let remaining = quantity;
-        let tradeProfit = 0;
-
-        // Dequeue matching BUY orders for this SELL transaction.
-        while (remaining > 0 && buyQueues[symbol].length > 0) {
-          let buyOrder = buyQueues[symbol][0];
-          let available = buyOrder.quantity;
-          let used = Math.min(remaining, available);
-
-          // Compute profit: (sell price - buy price) * shares sold.
-          tradeProfit += used * (price - buyOrder.price);
-          buyOrder.quantity -= used;
+      if (tx.transaction_type === 'BUY') {
+        buyQueues[sym].push({ quantity: qty, price: prc });
+      } else {
+        let remaining = qty, tradeProfit = 0;
+        while (remaining > 0 && buyQueues[sym].length) {
+          const head = buyQueues[sym][0];
+          const used = Math.min(remaining, head.quantity);
+          tradeProfit += used * (prc - head.price);
+          head.quantity -= used;
           remaining -= used;
-
-          // Remove the buy order if it has been fully matched.
-          if (buyOrder.quantity <= 0) {
-            buyQueues[symbol].shift();
-          }
+          if (head.quantity <= 0) buyQueues[sym].shift();
         }
-
-        // Treat each SELL as closing one aggregated trade.
         stats.totalTrades++;
         stats.totalProfit += tradeProfit;
-        if (tradeProfit > 0) {
-          stats.winningTrades++;
-        }
+        if (tradeProfit > 0) stats.winningTrades++;
         stats.biggestWin = Math.max(stats.biggestWin, tradeProfit);
         stats.biggestLoss = Math.min(stats.biggestLoss, tradeProfit);
       }
     }
 
-    const averageReturn = stats.totalTrades > 0 ? stats.totalProfit / stats.totalTrades : 0;
-    const winRate = stats.totalTrades > 0 ? (stats.winningTrades / stats.totalTrades) * 100 : 0;
-    // Handle cases where no trades were processed.
+    // 6) Compute summary statistics
+    const averageReturn = stats.totalTrades
+      ? stats.totalProfit / stats.totalTrades
+      : 0;
+    const winRate = stats.totalTrades
+      ? (stats.winningTrades / stats.totalTrades) * 100
+      : 0;
     if (stats.biggestWin === -Infinity) stats.biggestWin = 0;
     if (stats.biggestLoss === Infinity) stats.biggestLoss = 0;
+
+    // 7) Total return = (current balance + holdings value) – initial investment
+    const initialInvestment = 10000; 
+    const totalReturn =
+      parseFloat(user.balance) + holdingsValue - initialInvestment;
 
     const statistics = {
       totalReturn: totalReturn.toFixed(2),
@@ -410,9 +394,11 @@ async function getPortfolioData(userId) {
       biggestWin: stats.biggestWin.toFixed(2)
     };
 
+    // 8) Return everything—including realized profit for {{profit}}
     return {
       user,
       balance: user.balance,
+      profit: stats.totalProfit.toFixed(2),
       holdings: holdingsResult,
       transactions: transactionsDisplay,
       statistics
@@ -422,7 +408,6 @@ async function getPortfolioData(userId) {
     throw err;
   }
 }
-
 
 // portfolio page route
 app.get('/portfolio', auth, async (req, res) => {
@@ -490,6 +475,14 @@ app.get('/news', async (req, res) => {
     console.error('Error fetching news:', error);
     res.status(500).send('Internal Server Error');
   }
+});
+
+app.get('/trade', auth, (req, res) => {
+  const symbol = req.query.symbol || '';
+  res.render('pages/trade', { 
+    symbol,
+    user: req.session.user
+  });
 });
 
 // *****************************************************
