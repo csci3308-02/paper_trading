@@ -570,6 +570,67 @@ app.get('/trade', auth, (req, res) => {
   });
 });
 
+// settings route
+app.get('/settings', auth, (req, res) => {
+  res.render('pages/settings', {
+    user: req.session.user,
+    showHeader: true
+  });
+});
+
+app.post('/settings', auth, async (req, res) => {
+  const { username, email, password } = req.body;
+  const userId = req.session.user.user_id;
+
+  try {
+    const updates = [];
+    const params  = [];
+
+    if (username && username.trim()) {
+      params.push(username.trim());
+      updates.push(`username = $${params.length}`);
+    }
+    if (email && email.trim()) {
+      params.push(email.trim());
+      updates.push(`email = $${params.length}`);
+    }
+    if (password && password.trim()) {
+      const hash = await bcrypt.hash(password.trim(), 10);
+      params.push(hash);
+      updates.push(`password_hash = $${params.length}`);
+    }
+
+    if (updates.length) {
+      // build query only for provided fields
+      const query = `
+        UPDATE users
+        SET ${updates.join(', ')}
+        WHERE user_id = $${params.length + 1}
+      `;
+      params.push(userId);
+      await db.none(query, params);
+
+      // reflect changes in session
+      if (username && username.trim()) req.session.user.username = username.trim();
+      if (email && email.trim())    req.session.user.email    = email.trim();
+    }
+
+    res.render('pages/settings', {
+      user: req.session.user,
+      success: true,
+      showHeader: true
+    });
+
+  } catch (err) {
+    console.error('Settings update error:', err);
+    res.render('pages/settings', {
+      user: req.session.user,
+      error: 'Failed to save changes. Please try again.',
+      showHeader: true
+    });
+  }
+});
+
 // *****************************************************
 // <!-- Start Server-->
 // *****************************************************
