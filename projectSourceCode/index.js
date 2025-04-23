@@ -63,7 +63,7 @@ app.use((req, res, next) => {
 // ----------------------------------   DB CONFIG   ---------------------------------------------------
 
 const dbConfig = {
-  host: 'db',
+  host: process.env.PGHOST,
   port: 5432,
   database: process.env.POSTGRES_DB,
   user: process.env.POSTGRES_USER,
