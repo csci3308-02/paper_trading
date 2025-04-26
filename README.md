@@ -50,3 +50,4 @@ When a user logs in they receive a starting balance of fake money which they can
 
 ## Link to the Deployed Application
 [Live Application Here](https://stocksandbox.onrender.com/)
+[Launch API Web Service First Here](https://flask-api-nhm2.onrender.com)
