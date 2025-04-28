@@ -175,7 +175,9 @@ function simulateInstance(id, symbol, period = '1d') {
                   callback: function(value, index, ticks) {
                     const maxLength = 11;
                     let label = this.getLabelForValue(value);
-                  return label.length > maxLength ? label.substring(16, maxLength) : label;
+                    return label.length > maxLength
+                      ? label.substring(16, maxLength)
+                      : label;
                   }
                 },
               },
