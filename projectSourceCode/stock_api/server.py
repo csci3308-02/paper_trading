@@ -315,32 +315,45 @@ def get_holdings(user_id):
 
 @app.route('/api/stock')
 def handle_stock_request():
+    import requests  # make sure requests is imported
     tickers = request.args.getlist('ticker')
     live = request.args.get('live', 'false').lower() == 'true'
     results = []
+    polygon_key = os.getenv('POLYGON_API_KEY')
 
     for symbol in tickers:
         try:
             symbol = symbol.upper()
 
             if live:
-                stock = yf.Ticker(symbol)
-                info = stock.info
+                url = f"https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/{symbol}?apiKey={polygon_key}"
+                response = requests.get(url)
+                data = response.json()
+
+                if response.status_code != 200 or 'ticker' not in data or not isinstance(data['ticker'], dict):
+                    results.append({
+                        "ticker": symbol,
+                        "error": f"Polygon API error: {data.get('error', 'Unknown error')}"
+                    })
+                    continue
+
+                t = data['ticker']
                 results.append({
                     "ticker": symbol,
-                    "name": info.get("shortName"),
-                    "price": info.get("regularMarketPrice"),
-                    "open": info.get("open"),
-                    "previousClose": info.get("previousClose"),
-                    "dayLow": info.get("dayLow"),
-                    "dayHigh": info.get("dayHigh"),
-                    "yearLow": info.get("fiftyTwoWeekLow"),
-                    "yearHigh": info.get("fiftyTwoWeekHigh"),
-                    "marketCap": info.get("marketCap"),
-                    "volume": info.get("volume")
+                    "name": t.get('name', symbol),
+                    "price": t.get('lastTrade', {}).get('p'),
+                    "open": t.get('day', {}).get('o'),
+                    "previousClose": t.get('prevDay', {}).get('c'),
+                    "dayLow": t.get('day', {}).get('l'),
+                    "dayHigh": t.get('day', {}).get('h'),
+                    "yearLow": None,  # polygon does not provide these
+                    "yearHigh": None,
+                    "marketCap": None,
+                    "volume": t.get('day', {}).get('v')
                 })
                 continue
 
+            # Otherwise (NOT live) fallback to local database / yfinance
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -401,7 +414,9 @@ def handle_stock_request():
                 "ticker": symbol,
                 "error": str(e)
             })
+
     return jsonify(results)
+
 
 @app.route('/discover')
 
