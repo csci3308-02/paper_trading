@@ -326,30 +326,39 @@ def handle_stock_request():
             symbol = symbol.upper()
 
             if live:
-                url = f"https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/{symbol}?apiKey={polygon_key}"
-                response = requests.get(url)
-                data = response.json()
+                # Fetch last trade
+                trade_url = f"https://api.polygon.io/v2/last/trade/stocks/{symbol}?apiKey={polygon_key}"
+                trade_response = requests.get(trade_url)
+                trade_data = trade_response.json()
 
-                if response.status_code != 200 or 'ticker' not in data or not isinstance(data['ticker'], dict):
+                # Fetch previous day's data
+                prev_url = f"https://api.polygon.io/v2/aggs/ticker/{symbol}/prev?adjusted=true&apiKey={polygon_key}"
+                prev_response = requests.get(prev_url)
+                prev_data = prev_response.json()
+
+                if ('status' not in trade_data or trade_data['status'] != 'OK' or
+                    'status' not in prev_data or prev_data['status'] != 'OK'):
                     results.append({
                         "ticker": symbol,
-                        "error": f"Polygon API error: {data.get('error', 'Unknown error')}"
+                        "error": "Polygon API error: Failed to fetch data"
                     })
                     continue
 
-                t = data['ticker']
+                last_trade = trade_data.get('results', {})
+                prev_close = prev_data.get('results', [{}])[0]
+
                 results.append({
                     "ticker": symbol,
-                    "name": t.get('name', symbol),
-                    "price": t.get('lastTrade', {}).get('p'),
-                    "open": t.get('day', {}).get('o'),
-                    "previousClose": t.get('prevDay', {}).get('c'),
-                    "dayLow": t.get('day', {}).get('l'),
-                    "dayHigh": t.get('day', {}).get('h'),
-                    "yearLow": None,  # polygon does not provide these
+                    "name": symbol,  # Polygon snapshot doesn't return full company name easily without extra request
+                    "price": data.get('lastTrade', {}).get('p'),
+                    "open": data.get('day', {}).get('o'),
+                    "previousClose": data.get('prevDay', {}).get('c'),
+                    "dayLow": data.get('day', {}).get('l'),
+                    "dayHigh": data.get('day', {}).get('h'),
+                    "yearLow": None,
                     "yearHigh": None,
                     "marketCap": None,
-                    "volume": t.get('day', {}).get('v')
+                    "volume": data.get('day', {}).get('v')
                 })
                 continue
 
