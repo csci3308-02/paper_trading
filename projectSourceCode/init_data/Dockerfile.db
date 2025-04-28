@@ -1,0 +1,17 @@
+FROM postgres:14
+
+# Install psql client for our script
+RUN apt-get update && apt-get install -y postgresql-client
+
+# Copy our migration scripts
+COPY ensure_tables.sql /etc/postgresql/ensure_tables.sql
+COPY run_migrations.sh /usr/local/bin/run_migrations.sh
+
+# Make our script executable
+RUN chmod +x /usr/local/bin/run_migrations.sh
+
+# Use our script as the entrypoint
+ENTRYPOINT ["/usr/local/bin/run_migrations.sh"]
+
+# Set the default command to run PostgreSQL
+CMD ["postgres"] 

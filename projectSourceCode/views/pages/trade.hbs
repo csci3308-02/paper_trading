@@ -55,6 +55,61 @@
             color: var(--text-primary);
         }
         /* END ADDITION */
+        
+        /* Market status indicator */
+        .market-status {
+            padding: 0.5rem;
+            margin-bottom: 1rem;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .market-open {
+            background-color: rgba(25, 135, 84, 0.15);
+            color: #198754;
+        }
+        .market-closed {
+            background-color: rgba(108, 117, 125, 0.15);
+            color: #6c757d;
+        }
+        
+        /* Pending orders section */
+        .pending-orders {
+            margin-top: 2rem;
+        }
+        .pending-orders-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .pending-orders-table th, .pending-orders-table td {
+            color: var(--text-primary);
+            padding: 0.5rem;
+            border: 1px solid #dee2e6;
+        }
+        .pending-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        .badge-pending {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        .badge-executed {
+            background-color: #198754;
+            color: white;
+        }
+        .badge-failed {
+            background-color: #dc3545;
+            color: white;
+        }
+        .badge-processing {
+            background-color: #0d6efd;
+            color: white;
+        }
+        .badge-cancelled {
+            background-color: #6c757d;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -64,6 +119,8 @@
         <div class="balance-info">
             <strong>Current Balance:</strong> $<span id="userBalance">{{user.balance}}</span>
         </div>
+        
+        <div id="marketStatusContainer" class="market-status"></div>
 
         <div class="trade-container">
             <div class="trade-form">
@@ -124,6 +181,27 @@
                 </table>
             </div>
         </div>
+        
+        <div class="pending-orders">
+            <h2>Pending Orders</h2>
+            <p id="noPendingOrders">You have no pending orders.</p>
+            <table class="pending-orders-table" id="pendingOrdersTable" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Type</th>
+                        <th>Quantity</th>
+                        <th>Estimated Price</th>
+                        <th>Submitted</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="pendingOrdersTableBody">
+                    <!-- Pending orders will be populated here -->
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <!-- Initialize user data from server -->
@@ -140,9 +218,49 @@
             balance: parseFloat("{{user.balance}}") || 0,
             username: "{{user.username}}"
         };
+        
+        // Market state
+        let isMarketOpen = false;
     </script>
 
     <script>
+        // Check market status
+        async function checkMarketStatus() {
+            try {
+                const response = await fetch('/api/market-status');
+                if (!response.ok) {
+                    console.error(`Market status check failed: ${response.status} ${response.statusText}`);
+                    // Set a fallback market status indicator when the API fails
+                    const statusContainer = document.getElementById('marketStatusContainer');
+                    statusContainer.className = 'market-status market-closed';
+                    statusContainer.innerHTML = '⚠️ Unable to check market status - Trading available but orders may be queued';
+                    return false;
+                }
+                
+                const data = await response.json();
+                
+                isMarketOpen = data.isOpen;
+                const statusContainer = document.getElementById('marketStatusContainer');
+                
+                if (isMarketOpen) {
+                    statusContainer.className = 'market-status market-open';
+                    statusContainer.innerHTML = '✅ Market is OPEN - Orders will execute immediately';
+                } else {
+                    statusContainer.className = 'market-status market-closed';
+                    statusContainer.innerHTML = '⏰ Market is CLOSED - Orders will be queued for execution when market opens';
+                }
+                
+                return isMarketOpen;
+            } catch (error) {
+                console.error('Error checking market status:', error);
+                // Set a fallback market status indicator when the API fails
+                const statusContainer = document.getElementById('marketStatusContainer');
+                statusContainer.className = 'market-status market-closed';
+                statusContainer.innerHTML = '⚠️ Unable to check market status - Trading available but orders may be queued';
+                return false;
+            }
+        }
+        
         // Fetch the current price for a symbol
         async function fetchCurrentPrice(symbol) {
             try {
@@ -182,6 +300,103 @@
     </script>
 
     <script>
+        // Load pending orders for the user
+        async function loadPendingOrders() {
+            try {
+                const response = await fetch(`/api/pending-orders/${user.user_id}`);
+                if (!response.ok) throw new Error('Failed to fetch pending orders');
+                const orders = await response.json();
+                
+                const tableBody = document.getElementById('pendingOrdersTableBody');
+                const table = document.getElementById('pendingOrdersTable');
+                const noOrdersMessage = document.getElementById('noPendingOrders');
+                
+                tableBody.innerHTML = '';
+                
+                if (orders.length === 0) {
+                    table.style.display = 'none';
+                    noOrdersMessage.style.display = 'block';
+                    return;
+                }
+                
+                table.style.display = 'table';
+                noOrdersMessage.style.display = 'none';
+                
+                orders.forEach(order => {
+                    const row = document.createElement('tr');
+                    
+                    // Format the date
+                    const createdDate = new Date(order.created_at);
+                    const formattedDate = createdDate.toLocaleString();
+                    
+                    // Determine status badge class
+                    let badgeClass = '';
+                    switch (order.status) {
+                        case 'PENDING': badgeClass = 'badge-pending'; break;
+                        case 'EXECUTED': badgeClass = 'badge-executed'; break;
+                        case 'FAILED': badgeClass = 'badge-failed'; break;
+                        case 'PROCESSING': badgeClass = 'badge-processing'; break;
+                        case 'CANCELLED': badgeClass = 'badge-cancelled'; break;
+                        default: badgeClass = 'badge-pending';
+                    }
+                    
+                    // Build action buttons based on status
+                    let actionButtons = '';
+                    if (order.status === 'PENDING') {
+                        actionButtons = `
+                            <button class="btn btn-sm btn-danger" 
+                                    onclick="cancelOrder('${order.order_id}')">
+                                Cancel
+                            </button>
+                        `;
+                    }
+                    
+                    row.innerHTML = `
+                        <td>${order.symbol}</td>
+                        <td>${order.order_type}</td>
+                        <td>${order.quantity.toFixed(4)}</td>
+                        <td>$${order.price_at_creation.toFixed(2)}</td>
+                        <td>${formattedDate}</td>
+                        <td><span class="pending-badge ${badgeClass}">${order.status}</span></td>
+                        <td>${actionButtons}</td>
+                    `;
+                    
+                    tableBody.appendChild(row);
+                });
+                
+            } catch (error) {
+                console.error('Error loading pending orders:', error);
+            }
+        }
+        
+        // Function to cancel a pending order (placeholder for now)
+        async function cancelOrder(orderId) {
+            if (!confirm('Are you sure you want to cancel this order?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/cancel-order/${orderId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (!response.ok) throw new Error('Failed to cancel order');
+                
+                alert('Order cancelled successfully');
+                
+                // Refresh the pending orders list
+                loadPendingOrders();
+                
+                // Refresh user balance
+                await fetchUserBalance();
+                
+            } catch (error) {
+                console.error('Error cancelling order:', error);
+                alert(`Error cancelling order: ${error.message}`);
+            }
+        }
+        
         // Function to load user's holdings
         async function loadHoldings() {
             console.log('Loading holdings for user:', user.user_id);
@@ -233,6 +448,27 @@
             document.getElementById('tradeType').value = 'SELL';
             document.getElementById('symbol').scrollIntoView({ behavior: 'smooth' });
         }
+        
+        // Fetch user balance
+        async function fetchUserBalance() {
+            try {
+                const balanceResponse = await fetch(`/api/user/${user.user_id}/balance`);
+                if (!balanceResponse.ok) throw new Error('Failed to fetch balance');
+                
+                const balanceData = await balanceResponse.json();
+                
+                document.getElementById('userBalance').textContent = 
+                    parseFloat(balanceData.balance).toFixed(2);
+                
+                // Update local user object
+                user.balance = parseFloat(balanceData.balance);
+                
+                return balanceData.balance;
+            } catch (error) {
+                console.error('Error fetching user balance:', error);
+                return null;
+            }
+        }
 
         // Function to handle trade submission
         document.getElementById('tradeForm').addEventListener('submit', async (e) => {
@@ -267,29 +503,30 @@
                 console.log('Trade response:', result);
                 
                 if (response.ok) {
-                    messageDiv.innerHTML = `
+                    let successMessage = `
                         <div class="success-message">
                             ${result.message}<br>
-                            Price: $${result.price}<br>
-                            Total: $${result.total}
+                            Price: $${result.price.toFixed(2)}<br>
+                            Total: $${result.total.toFixed(2)}
                         </div>
                     `;
                     
-                    // Refresh holdings and user balance
+                    if (result.pending) {
+                        successMessage += `
+                            <div class="mt-2">
+                                <strong>Note:</strong> This order will be executed when the market opens.
+                                You can view and manage your pending orders below.
+                            </div>
+                        `;
+                    }
+                    
+                    messageDiv.innerHTML = successMessage;
+                    
+                    // Refresh holdings, pending orders, and user balance
                     await loadHoldings();
+                    await loadPendingOrders();
+                    await fetchUserBalance();
                     
-                    // Update user balance
-                    const balanceResponse = await fetch(`/api/user/${user.user_id}/balance`);
-                    console.log('Balance response status:', balanceResponse.status);
-                    const balanceData = await balanceResponse.json();
-                    console.log('New balance:', balanceData);
-                    
-                    document.getElementById('userBalance').textContent = 
-                        parseFloat(balanceData.balance).toFixed(2);
-                    
-                    // Update local user object
-                    user.balance = parseFloat(balanceData.balance);
-                        
                     // Reset form if not a pre-filled symbol
                     if (!document.getElementById('symbol').readOnly) {
                         document.getElementById('symbol').value = '';
@@ -314,10 +551,16 @@
             }
         });
 
-        // Load holdings when page loads
-        document.addEventListener('DOMContentLoaded', () => {
+        // Load everything when page loads
+        document.addEventListener('DOMContentLoaded', async () => {
             console.log('Page loaded, initializing...');
-            loadHoldings();
+            
+            // Check market status first
+            await checkMarketStatus();
+            
+            // Then load holdings and pending orders
+            await loadHoldings();
+            await loadPendingOrders();
         });
     </script>
 </body>

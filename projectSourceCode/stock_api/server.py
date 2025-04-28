@@ -6,10 +6,11 @@ from flask_cors import CORS
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, time, timedelta
 from decimal import Decimal
 import logging
 import yfinance as yf
+import pytz
 
 app = Flask(__name__)
 CORS(app)
@@ -35,6 +36,27 @@ def get_db_connection():
         user=os.getenv('POSTGRES_USER'),
         password=os.getenv('POSTGRES_PASSWORD')
     )
+
+def is_market_open():
+    """Check if US stock market is currently open"""
+    # US Eastern timezone for market hours
+    eastern = pytz.timezone('US/Eastern')
+    now = datetime.now(eastern)
+    
+    # Check if it's a weekday (0 = Monday, 4 = Friday)
+    if now.weekday() > 4:  # Weekend
+        return False
+    
+    # Regular trading hours: 9:30 AM - 4:00 PM Eastern
+    market_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    market_close = now.replace(hour=16, minute=0, second=0, microsecond=0)
+    
+    # Check if current time is within trading hours
+    if market_open <= now <= market_close:
+        # Could add holiday checking here if needed
+        return True
+    
+    return False
 
 def get_stock_price(symbol):
     """Get current stock price from Yahoo Finance"""
@@ -167,6 +189,10 @@ def handle_trade():
             return jsonify({"error": "Database connection failed"}), 500
         
         try:
+            # Check if market is open
+            market_open = is_market_open()
+            print(f"Market is {'open' if market_open else 'closed'}")
+            
             # Validate the trade
             print("Validating trade...")
             is_valid, error_msg, stock_id, current_price = validate_trade(
@@ -179,7 +205,7 @@ def handle_trade():
                 
             print(f"Trade validated. Stock ID: {stock_id}, Price: {current_price}")
             
-            cur = conn.cursor()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
             
             # Start transaction
             cur.execute("BEGIN")
@@ -188,47 +214,81 @@ def handle_trade():
             try:
                 total_amount = current_price * quantity
                 
-                if trade_type == 'BUY':
-                    # Update user's balance
-                    cur.execute(
-                        "UPDATE users SET balance = balance - %s WHERE user_id = %s",
-                        (total_amount, user_id)
-                    )
+                if market_open:
+                    # Execute the trade immediately
+                    if trade_type == 'BUY':
+                        # Update user's balance
+                        cur.execute(
+                            "UPDATE users SET balance = balance - %s WHERE user_id = %s",
+                            (total_amount, user_id)
+                        )
+                        
+                        # Update or insert holdings
+                        cur.execute("""
+                            INSERT INTO holdings (user_id, stock_id, quantity)
+                            VALUES (%s, %s, %s)
+                            ON CONFLICT (user_id, stock_id)
+                            DO UPDATE SET quantity = holdings.quantity + %s
+                        """, (user_id, stock_id, quantity, quantity))
+                        
+                    else:  # SELL
+                        # Update user's balance
+                        cur.execute(
+                            "UPDATE users SET balance = balance + %s WHERE user_id = %s",
+                            (total_amount, user_id)
+                        )
+                        
+                        # Update holdings
+                        cur.execute("""
+                            UPDATE holdings 
+                            SET quantity = quantity - %s
+                            WHERE user_id = %s AND stock_id = %s
+                        """, (quantity, user_id, stock_id))
+                        
+                        # Remove holding if quantity is 0
+                        cur.execute("""
+                            DELETE FROM holdings
+                            WHERE user_id = %s AND stock_id = %s AND quantity <= 0
+                        """, (user_id, stock_id))
                     
-                    # Update or insert holdings
+                    # Record the transaction
                     cur.execute("""
-                        INSERT INTO holdings (user_id, stock_id, quantity)
-                        VALUES (%s, %s, %s)
-                        ON CONFLICT (user_id, stock_id)
-                        DO UPDATE SET quantity = holdings.quantity + %s
-                    """, (user_id, stock_id, quantity, quantity))
+                        INSERT INTO transactions 
+                        (user_id, stock_id, transaction_type, quantity, price)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (user_id, stock_id, trade_type, quantity, current_price))
                     
-                else:  # SELL
-                    # Update user's balance
-                    cur.execute(
-                        "UPDATE users SET balance = balance + %s WHERE user_id = %s",
-                        (total_amount, user_id)
-                    )
-                    
-                    # Update holdings
-                    cur.execute("""
-                        UPDATE holdings 
-                        SET quantity = quantity - %s
-                        WHERE user_id = %s AND stock_id = %s
-                    """, (quantity, user_id, stock_id))
-                    
-                    # Remove holding if quantity is 0
-                    cur.execute("""
-                        DELETE FROM holdings
-                        WHERE user_id = %s AND stock_id = %s AND quantity <= 0
-                    """, (user_id, stock_id))
+                    response_message = f"{trade_type} order executed successfully"
                 
-                # Record the transaction
-                cur.execute("""
-                    INSERT INTO transactions 
-                    (user_id, stock_id, transaction_type, quantity, price)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (user_id, stock_id, trade_type, quantity, current_price))
+                else:
+                    # Queue the trade to execute when market opens
+                    print("Market is closed. Queueing order for execution when market opens.")
+                    
+                    # Create a pending order
+                    cur.execute("""
+                        INSERT INTO pending_orders
+                        (user_id, stock_id, order_type, quantity, price_at_creation, status)
+                        VALUES (%s, %s, %s, %s, %s, 'PENDING')
+                        RETURNING order_id
+                    """, (user_id, stock_id, trade_type, quantity, current_price))
+                    
+                    order_result = cur.fetchone()
+                    order_id = order_result['order_id']
+                    
+                    # For buy orders, reserve the funds
+                    if trade_type == 'BUY':
+                        # Create a reservation by updating the balance
+                        # Note: Another approach would be to have a separate "reserved_balance" column
+                        cur.execute(
+                            "UPDATE users SET balance = balance - %s WHERE user_id = %s",
+                            (total_amount, user_id)
+                        )
+                    
+                    # For sell orders, mark the shares as pending sale
+                    # This is a simplified approach; in a real system you might want to
+                    # create a separate "pending_sales" table
+                    
+                    response_message = f"{trade_type} order queued for execution when market opens"
                 
                 # Commit transaction
                 cur.execute("COMMIT")
@@ -236,10 +296,16 @@ def handle_trade():
                 
                 response_data = {
                     "success": True,
-                    "message": f"{trade_type} order executed successfully",
+                    "message": response_message,
                     "price": float(current_price),
-                    "total": float(total_amount)
+                    "total": float(total_amount),
+                    "market_open": market_open
                 }
+                
+                if not market_open:
+                    response_data["order_id"] = str(order_id)
+                    response_data["pending"] = True
+                
                 print("Sending success response:", response_data)
                 return jsonify(response_data)
                 
@@ -315,7 +381,7 @@ def handle_stock_request():
                     "ticker": symbol,
                     "name": info.get("shortName"),
                     "price": info.get("regularMarketPrice"),
-                    "open": info.get("open"),
+                    "open": info.get("regularMarketOpen"),
                     "previousClose": info.get("previousClose"),
                     "dayLow": info.get("dayLow"),
                     "dayHigh": info.get("dayHigh"),
@@ -699,5 +765,296 @@ def serve_index():
 def serve_static(path):
     return send_from_directory('.', path)
 
+@app.route('/api/pending-orders/<user_id>')
+def get_pending_orders(user_id):
+    """Get all pending orders for a user"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute("""
+            SELECT 
+                po.order_id,
+                po.order_type,
+                po.quantity,
+                po.created_at,
+                po.status,
+                po.price_at_creation,
+                po.executed_price,
+                po.executed_at,
+                po.notes,
+                s.symbol,
+                s.company_name,
+                s.last_price
+            FROM pending_orders po
+            JOIN stocks s ON po.stock_id = s.stock_id
+            WHERE po.user_id = %s
+            ORDER BY po.created_at DESC
+        """, (user_id,))
+        
+        orders = cur.fetchall()
+        
+        # Convert datetime objects to strings for JSON serialization
+        for order in orders:
+            if order['created_at']:
+                order['created_at'] = order['created_at'].isoformat()
+            if order['executed_at']:
+                order['executed_at'] = order['executed_at'].isoformat()
+            
+            # Format decimal values
+            if order['quantity']:
+                order['quantity'] = float(order['quantity'])
+            if order['price_at_creation']:
+                order['price_at_creation'] = float(order['price_at_creation'])
+            if order['executed_price']:
+                order['executed_price'] = float(order['executed_price'])
+            if order['last_price']:
+                order['last_price'] = float(order['last_price'])
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(orders)
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def process_pending_orders():
+    """Process all pending orders - should be called when market opens"""
+    if not is_market_open():
+        print("Market is not open. Skipping pending order processing.")
+        return
+        
+    print("Market is open. Processing pending orders...")
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    
+    try:
+        # Get all pending orders
+        cur.execute("""
+            SELECT 
+                po.order_id, 
+                po.user_id, 
+                po.stock_id, 
+                po.order_type, 
+                po.quantity, 
+                po.price_at_creation,
+                s.symbol
+            FROM pending_orders po
+            JOIN stocks s ON po.stock_id = s.stock_id
+            WHERE po.status = 'PENDING'
+            ORDER BY po.created_at
+        """)
+        
+        pending_orders = cur.fetchall()
+        print(f"Found {len(pending_orders)} pending orders to process")
+        
+        for order in pending_orders:
+            print(f"Processing order {order['order_id']} for {order['symbol']}")
+            
+            try:
+                # Update order status to processing
+                cur.execute("""
+                    UPDATE pending_orders SET status = 'PROCESSING' 
+                    WHERE order_id = %s
+                """, (order['order_id'],))
+                conn.commit()
+                
+                # Get current price
+                current_price = get_stock_price(order['symbol'])
+                if not current_price:
+                    # If we can't get a price, skip this order
+                    cur.execute("""
+                        UPDATE pending_orders 
+                        SET status = 'FAILED', notes = 'Could not get current price'
+                        WHERE order_id = %s
+                    """, (order['order_id'],))
+                    conn.commit()
+                    continue
+                
+                # Start transaction for this order
+                cur.execute("BEGIN")
+                
+                # Process based on order type
+                if order['order_type'] == 'BUY':
+                    # Note: We've already reserved funds when order was placed
+                    
+                    # Update or insert holdings
+                    cur.execute("""
+                        INSERT INTO holdings (user_id, stock_id, quantity)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (user_id, stock_id)
+                        DO UPDATE SET quantity = holdings.quantity + %s
+                    """, (order['user_id'], order['stock_id'], order['quantity'], order['quantity']))
+                    
+                    # Handle price differences if needed
+                    # In a real app, you might implement price slippage handling here
+                    
+                elif order['order_type'] == 'SELL':
+                    # Check if user has enough shares
+                    cur.execute("""
+                        SELECT quantity FROM holdings 
+                        WHERE user_id = %s AND stock_id = %s
+                    """, (order['user_id'], order['stock_id']))
+                    
+                    holding = cur.fetchone()
+                    if not holding or Decimal(str(holding['quantity'])) < Decimal(str(order['quantity'])):
+                        # Not enough shares, mark as failed
+                        cur.execute("""
+                            UPDATE pending_orders 
+                            SET status = 'FAILED', notes = 'Insufficient shares'
+                            WHERE order_id = %s
+                        """, (order['order_id'],))
+                        cur.execute("COMMIT")
+                        continue
+                    
+                    # Update holdings
+                    cur.execute("""
+                        UPDATE holdings 
+                        SET quantity = quantity - %s
+                        WHERE user_id = %s AND stock_id = %s
+                    """, (order['quantity'], order['user_id'], order['stock_id']))
+                    
+                    # Remove holding if quantity is 0
+                    cur.execute("""
+                        DELETE FROM holdings
+                        WHERE user_id = %s AND stock_id = %s AND quantity <= 0
+                    """, (order['user_id'], order['stock_id']))
+                    
+                    # Update user's balance (for sell orders, we didn't reserve funds)
+                    total_amount = current_price * Decimal(str(order['quantity']))
+                    cur.execute("""
+                        UPDATE users SET balance = balance + %s
+                        WHERE user_id = %s
+                    """, (total_amount, order['user_id']))
+                
+                # Record transaction
+                cur.execute("""
+                    INSERT INTO transactions 
+                    (user_id, stock_id, transaction_type, quantity, price)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (order['user_id'], order['stock_id'], order['order_type'], 
+                      order['quantity'], current_price))
+                
+                # Update order status
+                cur.execute("""
+                    UPDATE pending_orders
+                    SET status = 'EXECUTED', executed_price = %s, executed_at = CURRENT_TIMESTAMP
+                    WHERE order_id = %s
+                """, (current_price, order['order_id']))
+                
+                # Commit this order's transaction
+                cur.execute("COMMIT")
+                print(f"Order {order['order_id']} executed successfully")
+                
+            except Exception as e:
+                print(f"Error processing order {order['order_id']}: {e}")
+                cur.execute("ROLLBACK")
+                
+                # Mark order as failed
+                cur.execute("""
+                    UPDATE pending_orders
+                    SET status = 'FAILED', notes = %s
+                    WHERE order_id = %s
+                """, (str(e), order['order_id']))
+                conn.commit()
+    
+    finally:
+        cur.close()
+        conn.close()
+        print("Finished processing pending orders")
+
+@app.route('/api/process-pending-orders', methods=['POST'])
+def trigger_process_pending_orders():
+    """API endpoint to manually trigger processing of pending orders"""
+    # This could be called by a scheduled job when market opens
+    if not is_market_open():
+        return jsonify({
+            "success": False,
+            "message": "Market is not open. Cannot process pending orders."
+        }), 400
+        
+    try:
+        process_pending_orders()
+        return jsonify({
+            "success": True,
+            "message": "Pending orders processed successfully"
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"Error processing pending orders: {str(e)}"
+        }), 500
+
+@app.route('/api/cancel-order/<order_id>', methods=['POST'])
+def cancel_order(order_id):
+    """Cancel a pending order if it hasn't been executed yet"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Start transaction
+        cur.execute("BEGIN")
+        
+        # Check if order exists and is still pending
+        cur.execute("""
+            SELECT po.*, s.symbol
+            FROM pending_orders po
+            JOIN stocks s ON po.stock_id = s.stock_id
+            WHERE po.order_id = %s AND po.status = 'PENDING'
+        """, (order_id,))
+        
+        order = cur.fetchone()
+        if not order:
+            cur.execute("ROLLBACK")
+            return jsonify({
+                "success": False,
+                "message": "Order not found or already being processed"
+            }), 404
+        
+        # If it's a BUY order, refund the reserved funds
+        if order['order_type'] == 'BUY':
+            total_amount = Decimal(str(order['quantity'])) * Decimal(str(order['price_at_creation']))
+            cur.execute("""
+                UPDATE users 
+                SET balance = balance + %s 
+                WHERE user_id = %s
+            """, (total_amount, order['user_id']))
+        
+        # Update the order status
+        cur.execute("""
+            UPDATE pending_orders 
+            SET status = 'CANCELLED', notes = 'Cancelled by user'
+            WHERE order_id = %s
+        """, (order_id,))
+        
+        # Commit the transaction
+        cur.execute("COMMIT")
+        
+        return jsonify({
+            "success": True,
+            "message": f"Successfully cancelled {order['order_type']} order for {order['quantity']} {order['symbol']}"
+        })
+        
+    except Exception as e:
+        if 'conn' in locals() and 'cur' in locals():
+            cur.execute("ROLLBACK")
+        return jsonify({
+            "success": False,
+            "message": f"Error cancelling order: {str(e)}"
+        }), 500
+    finally:
+        if 'conn' in locals() and 'cur' in locals():
+            cur.close()
+            conn.close()
+
 if __name__ == '__main__':
+    # Check for and process pending orders on startup if market is open
+    if is_market_open():
+        print("Market is open. Processing any pending orders...")
+        process_pending_orders()
+    else:
+        print("Market is closed. Will process pending orders when market opens.")
+        
+    # Start the server
     app.run(host='0.0.0.0', port=8000, debug=True)

@@ -92,13 +92,13 @@ app.get('/api/news', async (req, res) => {
     const keyword = (req.query.keyword || '').trim().toLowerCase();
     const pageSize = 10;
 
-    // 1) Fetch “general” news from Finnhub
+    // 1) Fetch "general" news from Finnhub
     const url = `https://finnhub.io/api/v1/news?category=general&token=${apiKey}`;
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Finnhub returned ${response.status}`);
     const raw = await response.json();              // raw is an array
 
-    // 2) Map Finnhub’s shape → ours
+    // 2) Map Finnhub's shape → ours
     let feed = raw.map(item => ({
       title:          item.headline,
       summary:        item.summary || '',
@@ -120,7 +120,7 @@ app.get('/api/news', async (req, res) => {
     const nextOffset    = offset + pageSize;
     const hasMore       = nextOffset < totalItems;
 
-    // Always return JSON for your front‐end “Load More”:
+    // Always return JSON for your front-end "Load More":
     return res.json({
       news:       paginated,
       nextOffset,
@@ -136,9 +136,9 @@ app.get('/api/news', async (req, res) => {
 // ----------------------------------   API PROXY TO PYTHON SERVER   ----------------------------------
 
 app.use('/api', createProxyMiddleware({
-  target: 'https://flask-api-nhm2.onrender.com',
+  target: 'http://api:8000',
   changeOrigin: true,
-  secure: true,
+  secure: false,
   onProxyReq: (proxyReq, req, res) => {
     // Forward the user ID from session to the Python API
     if (req.session.user) {
@@ -370,7 +370,7 @@ async function getPortfolioData(userId) {
     // Refresh live price for each holding
     for (let holding of holdingsResult) {
       try {
-        // call your live‐price endpoint:
+        // call your live-price endpoint:
         const res = await fetch(`http://api:8000/api/price/${holding.symbol}`);
         if (res.ok) {
           const { price } = await res.json();
@@ -387,7 +387,7 @@ async function getPortfolioData(userId) {
       0
     );
 
-    // 4) Pull all transactions (for display) and also ordered‐asc for FIFO stats
+    // 4) Pull all transactions (for display) and also ordered-asc for FIFO stats
     const transactionsDisplay = await db.any(
       `SELECT t.transaction_date, t.transaction_type, t.quantity, t.price, s.symbol
        FROM transactions t
@@ -494,7 +494,7 @@ app.get('/portfolio', auth, async (req, res) => {
 app.get('/news', async (req, res) => {
   try {
     const apiKey = process.env.FINNHUB_API_KEY;
-    // Finnhub “general” news endpoint
+    // Finnhub "general" news endpoint
     const url = `https://finnhub.io/api/v1/news?category=general&token=${apiKey}`;
     const response = await fetch(url);
     if (!response.ok) {
@@ -629,7 +629,7 @@ app.listen(PORT, () => {
   // Wake up Flask API server
   (async () => {
     try {
-      const res = await fetch(`https://flask-api-nhm2.onrender.com/api/market-status`);
+      const res = await fetch(`http://api:8000/api/market-status`);
       if (res.ok) {
         console.log('✅ Flask API woke up successfully');
       } else {
@@ -640,3 +640,51 @@ app.listen(PORT, () => {
     }
   })();
 });
+
+// *****************************************************
+// <!-- Scheduled Tasks -->
+// *****************************************************
+
+// Check market status every 5 minutes and process pending orders if market has opened
+let wasMarketClosed = true; // Start assuming market is closed
+const checkMarketAndProcessOrders = async () => {
+  try {
+    const res = await fetch(`http://api:8000/api/market-status`);
+    if (!res.ok) {
+      console.warn(`⚠️ Market status check failed: ${res.status}`);
+      return;
+    }
+    
+    const data = await res.json();
+    console.log(`Market status check: Market is ${data.isOpen ? 'OPEN' : 'CLOSED'}`);
+    
+    // If market has just opened and was previously closed, process pending orders
+    if (data.isOpen && wasMarketClosed) {
+      console.log('🔄 Market has opened since last check - Processing pending orders');
+      
+      try {
+        const processRes = await fetch(`http://api:8000/api/process-pending-orders`, {
+          method: 'POST'
+        });
+        
+        if (processRes.ok) {
+          console.log('✅ Successfully processed pending orders');
+        } else {
+          console.warn(`⚠️ Error processing pending orders: ${processRes.status}`);
+        }
+      } catch (procErr) {
+        console.error('❌ Error calling process-pending-orders endpoint:', procErr.message);
+      }
+    }
+    
+    // Update market status for next check
+    wasMarketClosed = !data.isOpen;
+    
+  } catch (err) {
+    console.error('❌ Error checking market status:', err.message);
+  }
+};
+
+// Run the check immediately and then every 5 minutes
+checkMarketAndProcessOrders();
+setInterval(checkMarketAndProcessOrders, 5 * 60 * 1000);

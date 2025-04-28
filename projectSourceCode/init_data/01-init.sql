@@ -41,6 +41,21 @@ CREATE TABLE transactions (
     transaction_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Create pending_orders table (For queued trades when market is closed)
+CREATE TABLE pending_orders (
+    order_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    stock_id UUID NOT NULL REFERENCES stocks(stock_id) ON DELETE CASCADE,
+    order_type VARCHAR(4) NOT NULL CHECK (order_type IN ('BUY', 'SELL')),
+    quantity DECIMAL(15,4) NOT NULL CHECK (quantity > 0),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'PROCESSING', 'EXECUTED', 'FAILED', 'CANCELLED')),
+    price_at_creation DECIMAL(15,2),
+    executed_price DECIMAL(15,2),
+    executed_at TIMESTAMP WITH TIME ZONE,
+    notes TEXT
+);
+
 -- Create watchlists table
 CREATE TABLE watchlists (
     watchlist_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
