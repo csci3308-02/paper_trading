@@ -27,6 +27,21 @@ def log_request_info():
 
 PORT = 8000
 
+#market open/close times
+
+from pytz import timezone
+
+def is_market_open():
+    now_utc = datetime.now(timezone('UTC'))
+    eastern = now_utc.astimezone(timezone('US/Eastern'))
+
+    # Market open hours are 9:30 AM to 4:00 PM ET
+    market_open = eastern.replace(hour=9, minute=30, second=0, microsecond=0)
+    market_close = eastern.replace(hour=16, minute=0, microsecond=0)
+
+    is_weekday = eastern.weekday() < 5  # Monday-Friday
+    return is_weekday and market_open <= eastern <= market_close
+
 # Database connection
 def get_db_connection():
     return psycopg2.connect(
