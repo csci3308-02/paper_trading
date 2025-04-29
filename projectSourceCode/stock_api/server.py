@@ -44,6 +44,13 @@ def get_stock_price(symbol):
     except:
         return None
     
+def fetch_stock_info(symbol):
+    try:
+        return yf.Ticker(symbol).info
+    except Exception as e:
+        logger.warning(f"yfinance.info failed for {symbol}: {e}")
+        return {}
+
 @app.route('/api/price/<symbol>')
 def get_price(symbol):
     """Return the current price for a single stock symbol"""
@@ -311,18 +318,19 @@ def handle_stock_request():
             if live:
                 stock = yf.Ticker(symbol)
                 info = stock.info
+                info = fetch_stock_info(symbol)
                 results.append({
                     "ticker": symbol,
-                    "name": info.get("shortName"),
-                    "price": info.get("regularMarketPrice"),
-                    "open": info.get("open"),
-                    "previousClose": info.get("previousClose"),
-                    "dayLow": info.get("dayLow"),
-                    "dayHigh": info.get("dayHigh"),
-                    "yearLow": info.get("fiftyTwoWeekLow"),
-                    "yearHigh": info.get("fiftyTwoWeekHigh"),
-                    "marketCap": info.get("marketCap"),
-                    "volume": info.get("volume")
+                    "name":          info.get("shortName", symbol),
+                    "price":         info.get("regularMarketPrice", 0),
+                    "open":          info.get("regularMarketOpen", info.get("open", 0)),
+                    "previousClose": info.get("regularMarketPreviousClose", info.get("previousClose", 0)),
+                    "dayLow":        info.get("regularMarketDayLow", info.get("dayLow", 0)),
+                    "dayHigh":       info.get("regularMarketDayHigh", info.get("dayHigh", 0)),
+                    "yearLow":       info.get("fiftyTwoWeekLow", 0),
+                    "yearHigh":      info.get("fiftyTwoWeekHigh", 0),
+                    "marketCap":     info.get("marketCap", 0),
+                    "volume":        info.get("volume", 0)
                 })
                 continue
 

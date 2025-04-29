@@ -131,7 +131,7 @@ function simulateInstance(id, symbol, period = '1d') {
               ${s.name} (${s.ticker})
             </div>
             <div style="font-size:1.25rem; color:${trendColor};">
-              $${(lastPrice).toFixed(2)}
+              $${lastPrice.toFixed(2)}
             </div>`;
           displayStockInfoInstance(id, s);
         })
@@ -175,9 +175,11 @@ function simulateInstance(id, symbol, period = '1d') {
                   callback: function(value, index, ticks) {
                     const maxLength = 11;
                     let label = this.getLabelForValue(value);
-                  return label.length > maxLength ? label.substring(16, maxLength) : label;
+                    return label.length > maxLength
+                      ? label.substring(16, maxLength)
+                      : label;
                   }
-                },
+                }
               },
               y: {
                 title: { display: true, text: 'Price (USD)' },
